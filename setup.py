@@ -1,5 +1,7 @@
 ''' Define executable setup '''
-from setuptools import setup
+import os
+from setuptools import setup, find_packages
+import warnings
 
 setup(
     name='clokta',
