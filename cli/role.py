@@ -14,6 +14,7 @@ import requests
 import click
 import yaml
 from bs4 import BeautifulSoup
+from six.moves import input
 
 
 @click.command()
@@ -79,6 +80,7 @@ def okta_session_token(configuration):
         okta_response = okta_auth_response(configuration=configuration)
     except requests.exceptions.HTTPError as err:
         print('Okta returned this credentials/password related error: {}'.format(err))
+        exit(1)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         exit(1)
