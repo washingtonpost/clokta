@@ -4,3 +4,4 @@ __pycache__/
 .env/
 aws_session.sh
 dist/
+.vscode
