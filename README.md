@@ -91,12 +91,10 @@ According to [the boto3 documentation](http://boto3.readthedocs.io/en/latest/ref
 The duration, in seconds, of the role session. The value can range from 900 seconds (15 minutes) to 3600 seconds (1 hour). By default, the value is set to 3600 seconds. An expiration can also be specified in the SAML authentication response's SessionNotOnOrAfter value. The actual expiration time is whichever value is shorter.
 </pre>
 
-Given maximum value is also the default duration, the session willneed to be re-freshed after 3600 seconds (1 hour).
+Given maximum value is also the default duration, the session must be re-freshed after 3600 seconds (1 hour).
 
 ### SEC-116
 
 > Support other MFA options, SMS and Okta Verify
 
-These are now all supported. If ou don't have a value for `MULTIFACTOR_PREFERENCE` in your Okta config file, and you don't know what to put there, simply press enter when prompted for it. The tool will prompt you to choose one from a set of options, and you can copy/paste your preferred option into your config file.
-
-> NOTE: Activating the MFA types must be done though the Okta user interface.
+These are now all supported. For first-time usage, add `MULTIFACTOR_PREFERENCE` to the Okta config file but leave it blank, then press <return> when prompted by clokta. The tool will prompt from a set of options; copy/paste your preferred option (ex. `OKTA-sms`) into the config file to bypass that step.
