@@ -30,7 +30,7 @@ OKTA_AWS_APP_URL: https://washpost.okta.com/home/amazon_aws/0of1f11ff1fff1ffF1f1
 OKTA_AWS_ROLE_TO_ASSUME: arn:aws:iam::111111111111:role/Okta_Role
 OKTA_IDP_PROVIDER: arn:aws:iam::111111111111:saml-provider/Okta_Idp
 OKTA_USERNAME:
-MULTIFACTOR_PREFERENCE: OKTA-sms
+MULTIFACTOR_PREFERENCE: 
 ```
 
 Note: You can insert your username into the yml file or clokta will prompt you for it
@@ -97,4 +97,4 @@ Given maximum value is also the default duration, the session must be re-freshed
 
 > Support other MFA options, SMS and Okta Verify
 
-These are now all supported. For first-time usage, add `MULTIFACTOR_PREFERENCE` to the Okta config file but leave it blank, then press <return> when prompted by clokta. The tool will prompt from a set of options; copy/paste your preferred option (ex. `OKTA-sms`) into the config file to bypass that step.
+These are now all supported. For first-time usage, add `MULTIFACTOR_PREFERENCE` to the Okta config file but leave it blank, then press <return> when prompted by clokta. The tool will prompt from a set of options; copy/paste your preferred option (ex. `OKTA-sms`) into the config file to subsequently bypass this step.
