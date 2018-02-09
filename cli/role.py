@@ -56,7 +56,7 @@ def assume_role(config=None, profile=None, verbose=False):
 
     __write_aws_configs(
         role_credentials=response,
-        output_format=OutputFormat.Profile if profile else ShellScript,
+        output_format=OutputFormat.Profile if profile else OutputFormat.ShellScript,
         profile_name=profile,
         verbose=verbose
     )
