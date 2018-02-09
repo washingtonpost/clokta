@@ -56,12 +56,16 @@ class ProfileManager(object):
         if self.verbose:
             print('Re-writing credentials file', self.profiles_location)
 
+        if not os.path.exists(os.path.dirname(self.profiles_location)):
+            os.makedirs(os.path.dirname(self.profiles_location))
+
         with open(self.profiles_location, 'w') as configfile:
             config.write(configfile)
 
     def __backup_profiles(self):
-        with open(self.profiles_location, 'r') as profile_file:
-            contents = profile_file.read()
+        if os.path.isfile(path=self.profiles_location):
+            with open(self.profiles_location, 'r') as profile_file:
+                contents = profile_file.read()
 
-        with open(self.profiles_backup_location, 'w') as bak_file:
-            bak_file.write(contents)
+            with open(self.profiles_backup_location, 'w') as bak_file:
+                bak_file.write(contents)

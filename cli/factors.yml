@@ -12,3 +12,7 @@ MfaProviders:
     prompt: SMS text message
     factor_type: sms
     provider: OKTA
+  # - id: OktaPush
+  #   prompt: Okta Verify with Push
+  #   factor_type: push
+  #   provider: OKTA
