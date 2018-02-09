@@ -15,7 +15,8 @@ setup(
         'requests',
         'bs4',
         'pyyaml',
-        'six'
+        'six',
+        'pyaml'
     ],
     entry_points={
         'console_scripts': [
@@ -25,8 +26,7 @@ setup(
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",
-    download_url = "https://github.com/washingtonpost/clokta/tarball/v0.4",
-    keywords = ['okta', 'clokta', 'aws', 'cli'],
-    classifiers = []
-
+    download_url="https://github.com/washingtonpost/clokta/tarball/v0.4",
+    keywords=['okta', 'clokta', 'aws', 'cli'],
+    classifiers=[]
 )

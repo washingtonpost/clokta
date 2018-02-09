@@ -1,8 +1,6 @@
 '''
 This is the entry-point to the cli application.
 '''
-import copy
-import getpass
 import json
 import logging
 import os
@@ -15,33 +13,38 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 
+from cli.factor_chooser import FactorChooser
+from cli.profile_manager import OutputFormat, ProfileManager
+from cli.config_loader import ConfigLoader
 from six.moves import input
 
 
 @click.command()
-@click.option('--verbose', '-v', is_flag=True, help='Show detailed .')
-@click.option('--config', '-c', default=None, help='Path to configuration file.')
-def assume_role(config=None, verbose=False):
+@click.option('--verbose', '-v', is_flag=True, help='Show detailed')
+@click.option('--config', '-c', default=None, help='Path to configuration file')
+@click.option('--profile', '-p', default=None, help='Profile to save to')
+def assume_role(config=None, profile=None, verbose=False):
     ''' entry point for the cli tool '''
-    configuration = __load_configuration(config_path=config, verbose=verbose)
-    if verbose:
-        copy_config = copy.deepcopy(configuration)
-        copy_config['OKTA_PASSWORD'] = '<redacted>'
-        click.echo('Configuration:')
-        click.echo(copy_config)
+    configuration = ConfigLoader.load_configuration(config_path=config, verbose=verbose)
 
-    session_token = __okta_session_token(configuration=configuration, verbose=verbose)
+    session_token = __okta_session_token(
+        configuration=configuration,
+        verbose=verbose
+    )
     if verbose:
         click.echo('Okta session token:')
         click.echo(session_token)
 
-    saml_assertion = __saml_assertion_aws(session_token=session_token, configuration=configuration)
+    saml_assertion = __saml_assertion_aws(
+        session_token=session_token,
+        configuration=configuration,
+        verbose=verbose
+    )
     if verbose:
         click.echo('SAML:')
         click.echo(saml_assertion)
 
     client = boto3.client('sts')
-
     response = client.assume_role_with_saml(
         RoleArn=configuration['OKTA_AWS_ROLE_TO_ASSUME'],
         PrincipalArn=configuration['OKTA_IDP_PROVIDER'],
@@ -51,45 +54,16 @@ def assume_role(config=None, verbose=False):
         click.echo('assume_role_with_saml:')
         click.echo(response)
 
-    __write_aws_configs(role_credentials=response, verbose=verbose)
+    __write_aws_configs(
+        role_credentials=response,
+        output_format=OutputFormat.Profile if profile else ShellScript,
+        profile_name=profile,
+        verbose=verbose
+    )
 
-def __load_configuration(config_path, verbose=False):
-    ''' Configuration file values override environment variables '''
-    cfg = {}
-    configuration = {}
-    if config_path:
-        try:
-            with open(config_path, 'r') as config_file:
-                contents = config_file.read()
-                cfg = yaml.load(contents, Loader=yaml.SafeLoader)
-        except OSError as oserr:
-            msg = 'Error related to your configuration file: {}'.format(oserr)
-            logging.exception(msg) if verbose else print(msg)
-            sys.exit(1)
-        except Exception as err:
-            msg = 'Unexpected error: {}'.format(err)
-            logging.exception(msg) if verbose else print(msg)
-            sys.exit(1)
-
-    for key in [
-            'OKTA_USERNAME',
-            'OKTA_PASSWORD',
-            'OKTA_ORG',
-            'OKTA_AWS_APP_URL',
-            'OKTA_AWS_ROLE_TO_ASSUME',
-            'OKTA_IDP_PROVIDER',
-            'MULTIFACTOR_PREFERENCE'
-    ]:
-        if key.endswith('PASSWORD'):
-            configuration[key] = os.getenv(key, getpass.getpass(prompt="Enter a value for {}:".format(key)))
-        else:
-            configuration[key] = cfg.get(key) if cfg.get(key) \
-                else os.getenv(key, input("Enter a value for {}:".format(key)))
-
-    return configuration
 
 def __okta_session_token(configuration, verbose=False):
-    ''' Authenticate with Okta to create a session and receive a session token '''
+    ''' Authenticate with Okta; receive a session token '''
     okta_response = None
 
     try:
@@ -104,14 +78,20 @@ def __okta_session_token(configuration, verbose=False):
         sys.exit(1)
 
     if okta_response['status'] == 'MFA_REQUIRED':
-        return __okta_session_token_mfa(
-            auth_response=okta_response,
-            factors=okta_response['_embedded']['factors'],
-            factor_preference=configuration['MULTIFACTOR_PREFERENCE'],
-            verbose=verbose
-        )
-    else:
-        return okta_response['sessionToken']
+        factors = okta_response['_embedded']['factors']
+        if factors:
+            return __okta_session_token_mfa(
+                auth_response=okta_response,
+                factors=factors,
+                factor_preference=configuration['MULTIFACTOR_PREFERENCE'],
+                verbose=verbose
+            )
+        else:
+            msg = 'No MFA factors have been set up for this account'
+            logging.exception(msg) if verbose else print(msg)
+            sys.exit(1)
+    return okta_response['sessionToken']
+
 
 def __okta_session_token_mfa(auth_response, factors, factor_preference, verbose=False):
     ''' Determine which factor to use and apply it to get a session token '''
@@ -123,8 +103,7 @@ def __okta_session_token_mfa(auth_response, factors, factor_preference, verbose=
     state_token = auth_response['stateToken']
 
     if factor['factorType'] == 'sms':
-        # TODO: ask for it to send us an MFA token
-        send_sms_response = __okta_mfa_verification(
+        __okta_mfa_verification(
             factor_dict=factor,
             state_token=state_token,
             otp_value=None
@@ -149,39 +128,30 @@ def __okta_session_token_mfa(auth_response, factors, factor_preference, verbose=
 
     return session_token
 
+
 def __choose_factor(factors, factor_preference=None, verbose=False):
     ''' Automatically choose, or allow user to choose, the MFA option '''
+
+    fc = FactorChooser(
+        factors=factors,
+        factor_preference=factor_preference,
+        verbose=verbose
+    )
+
+    # Is there only one legitimate MFA option available?
     if len(factors) == 1:
-        if verbose:
-            print('Using available factor: {}-{}'.format(
-                factors[0]['provider'],
-                factors[0]['factorType'],
-            ))
-        return factors[0]
+        factor = fc.verify_only_factor(factor=factor)
+        if factor:
+            return factor
 
+    # Has the user pre-selected a legitimate factor?
     if factor_preference:
-        matched_factors = [
-            fact for fact in factors \
-                if '{}-{}'.format(fact['provider'], fact['factorType']) == factor_preference
-        ]
-        if matched_factors:
-            if verbose:
-                print('Using preferred factor: {}'.format(factor_preference))
-            return matched_factors[0]
+        factor = fc.verify_preferred_factor()
+        if factor:
+            return factor
 
-    choice = 1
-    index = 1
-    for fact in factors:
-        print(
-            '{index} - {provider}-{factor_type}'.format(
-                index=index,
-                provider=fact['provider'],
-                factor_type=fact['factorType']
-            )
-        )
-        index += 1
-    choice = int(input('Choose a MFA type to use:'))        
-    return factors[choice - 1]
+    return fc.choose_supported_factor()
+
 
 def __okta_mfa_verification(factor_dict, state_token, otp_value=None):
     ''' Sends the  '''
@@ -198,11 +168,12 @@ def __okta_mfa_verification(factor_dict, state_token, otp_value=None):
         payload['answer'] = otp_value
 
     response = requests.post(url, data=json.dumps(payload), headers=headers)
-    if response.status_code == requests.codes.ok:
+    if response.status_code == requests.codes.ok:  # pylint: disable=E1101
         resp = json.loads(response.text)
         return resp
     else:
         response.raise_for_status()
+
 
 def __okta_auth_response(configuration):
     ''' Returns an HTTP response for credentials-based authentication with Okta '''
@@ -218,18 +189,20 @@ def __okta_auth_response(configuration):
     url = 'https://' + configuration['OKTA_ORG'] + '/api/v1/authn'
 
     response = requests.post(url, data=json.dumps(payload), headers=headers)
-    if response.status_code == requests.codes.ok:
+    if response.status_code == requests.codes.ok:  # pylint: disable=E1101
         resp = json.loads(response.text)
         return resp
     else:
         response.raise_for_status()
 
-def __saml_assertion_aws(session_token, configuration):
+
+def __saml_assertion_aws(session_token, configuration, verbose=False):
     ''' fetch saml 2.0 assertion '''
     response = __okta_app_response(session_token=session_token, configuration=configuration)
 
-    with open('saml_response.html', 'wb') as f:
-        f.write(response.content)
+    if verbose:
+        with open('saml_response.html', 'wb') as f:
+            f.write(response.content)
 
     soup = BeautifulSoup(response.content, "html.parser")
     assertion = None
@@ -238,38 +211,52 @@ def __saml_assertion_aws(session_token, configuration):
             assertion = inputtag.get('value')
     return assertion
 
+
 def __okta_app_response(session_token, configuration):
     url = configuration['OKTA_AWS_APP_URL'] + '?onetimetoken=' + session_token
     response = requests.get(url)
-    if response.status_code == requests.codes.ok:
+    if response.status_code == requests.codes.ok:  # pylint: disable=E1101
         return response
     else:
         response.raise_for_status()
 
-def __write_aws_configs(role_credentials, verbose=False):
+
+def __write_aws_configs(role_credentials, output_format=OutputFormat.ShellScript, profile_name=None, verbose=False):
     ''' Generates a shell file you can execute to apply role credentials to the environment '''
     output_file_name = 'aws_session.sh'
     if verbose:
-        print(json.dumps(obj=role_credentials, default=json_serial, indent=4, sort_keys=True))
+        print(json.dumps(
+            obj=role_credentials,
+            default=json_serial,
+            indent=4,
+            sort_keys=True
+        ))
 
-    lines = [
-        'export AWS_ACCESS_KEY_ID={}\n'.format(
-            role_credentials['Credentials']['AccessKeyId']
-        ),
-        'export AWS_SECRET_ACCESS_KEY={}\n'.format(
-            role_credentials['Credentials']['SecretAccessKey']
-        ),
-        'export AWS_SESSION_TOKEN={}\n'.format(
-            role_credentials['Credentials']['SessionToken']
+    if output_format == OutputFormat.ShellScript:
+        lines = [
+            'export AWS_ACCESS_KEY_ID={}\n'.format(
+                role_credentials['Credentials']['AccessKeyId']
+            ),
+            'export AWS_SECRET_ACCESS_KEY={}\n'.format(
+                role_credentials['Credentials']['SecretAccessKey']
+            ),
+            'export AWS_SESSION_TOKEN={}\n'.format(
+                role_credentials['Credentials']['SessionToken']
+            )
+        ]
+        with open(output_file_name, mode='w') as file_handle:
+            file_handle.writelines(lines)
+        print(
+            "AWS keys saved to {loc}. To use, 'source {loc}'".format(
+                loc=output_file_name
+            )
         )
-    ]
-    with open(output_file_name, mode='w') as file_handle:
-        file_handle.writelines(lines)
-    print(
-        "AWS keys saved to {loc}. To use, 'source {loc}'".format(
-            loc=output_file_name
-        )
-    )
+
+    if output_format == OutputFormat.Profile:
+        # TODO: upsert credentials into the profile file
+        pm = ProfileManager(profile_name=profile_name, verbose=verbose)
+        pm.apply_credentials(role_credentials=role_credentials)
+        
 
 def json_serial(obj):
     ''' JSON serializer for objects not serializable by default json code '''
