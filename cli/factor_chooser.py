@@ -69,7 +69,7 @@ class FactorChooser(object):
             print('Please select a valid option: you chose', raw_choice)
             return self.choose_supported_factor()
 
-        if len(self.option_factors) - 1 > choice >= 0:
+        if len(self.option_factors) > choice >= 0:
             pass
         else:
             print('Please select a valid option: you chose', raw_choice)
