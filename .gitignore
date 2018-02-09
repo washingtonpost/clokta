@@ -1,7 +1,12 @@
+dist/
+# Python / Virtual Environments
 __pycache__/
 *.py[cod]
 *.egg-info/
 .env/
+# When shell script option (default) is used
 aws_session.sh
-dist/
+# VSCode IDE settings
 .vscode
+# --verbose only
+saml_response.html
