@@ -98,3 +98,14 @@ Given maximum value is also the default duration, the session must be re-freshed
 > Support other MFA options, SMS and Okta Verify
 
 These are now all supported. For first-time usage, add `MULTIFACTOR_PREFERENCE` to the Okta config file but leave it blank, then press <return> when prompted by clokta. The tool will prompt from a set of options; copy/paste your preferred option (ex. `OKTA-sms`) into the config file to subsequently bypass this step.
+
+### SEC-117
+
+> Add '--profile/-p' option to CLI
+
+When adding `--profile={name}` or `-p {name}` to the clokta command like, you instruct it to create a profile in the `~/.aws/credentials` file.
+
+- if it exists already, the current version will be backed up to `~/.aws/credentials,bak`
+  - none of the existing profiles will be lost
+  - using the same name as an existing profile will overwrite its data
+- if the credentials file doesn't exist, it will be created
