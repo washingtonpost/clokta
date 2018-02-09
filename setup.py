@@ -5,7 +5,7 @@ import warnings
 
 setup(
     name='clokta',
-    version='0.5',
+    version='0.6',
     packages=find_packages(),
     include_package_data=True,
     py_modules=['clokta'],
