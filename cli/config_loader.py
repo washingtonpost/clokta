@@ -24,11 +24,17 @@ class ConfigLoader(object):
                     cfg = yaml.load(contents, Loader=yaml.SafeLoader)
             except OSError as oserr:
                 msg = 'Error related to your configuration file: {}'.format(oserr)
-                logging.exception(msg) if verbose else print(msg)
+                if verbose:
+                    logging.exception(msg)
+                else:
+                    print(msg)
                 sys.exit(1)
             except Exception as err:
                 msg = 'Unexpected error: {}'.format(err)
-                logging.exception(msg) if verbose else print(msg)
+                if verbose:
+                    logging.exception(msg)
+                else:
+                    print(msg)
                 sys.exit(1)
 
         for key in [
