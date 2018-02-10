@@ -12,17 +12,45 @@ You will need Python 2.7 or 3 installed on your machine
 
 ## To Use
 
-```bash
-> clokta -c <your-team-clokta-config>.yml
-> source aws_session.sh
+```
+$ clokta --profile <your-team> -c <your-team-clokta-config>.yml
+$ aws --profile <your-team> s3 ls (or any other aws command you want)
 ```
 
-1. Ensure you have Google Authenticator setup in Okta.  Currently, Google Authenticator is the only MFA supported.
+This injects temporary keys into your .aws/credentials file that can be accessed with the --profile option.
 
-1. Obtain a clokta.yml from your team that contains the required information for you account.
-  (See below for how a team can generate a clokta.yml)
+Another option creates a file which can be sourced to enable just the current session:
 
-  A typical clokta.yml will look like this.
+```
+$ clokta -c <your-team-clokta-config>.yml
+$ source aws_session.sh
+$ aws s3 ls
+```
+
+Run AWS commands for the next hour.  After an hour the keys expire and you must rerun clokta.
+
+Applications that access AWS can be run locally if the you used the second option that puts the keys in the environment of the current session.
+
+Obtain a clokta.yml from your team.   See below for how a team can generate a clokta.yml.
+
+## More Info
+
+Clokta will prompt you for a password and, if required, will prompt you for multi-factor authentication.  A typical scenario looks like
+
+```
+> clokta --profile meridian -c ~/cloktaMeridian.yml 
+Enter a value for OKTA_PASSWORD:
+1 - Google Authenticator
+2 - Okta Verify
+3 - SMS text message
+Choose a MFA type to use: 3
+Enter your multifactor authentication token: 914345
+> 
+```
+
+If you always intend on using the same the same MFA mechanism, you can put this in your clokta configuration file.  For example, the line "MULTIFACTOR_PREFERENCE: SMS text message" will always use SMS MFA.
+
+A typical clokta.yml will look like this.
 
 ```yaml
 OKTA_ORG: washpost.okta.com
@@ -33,7 +61,7 @@ OKTA_USERNAME:
 MULTIFACTOR_PREFERENCE: 
 ```
 
-Note: You can insert your username into the yml file or clokta will prompt you for it
+Note: You can insert your username or preferred multifactor mechanism into the yml file or clokta will prompt you for them.
 
 Note: Alternatively, you can put all these values in your environment rather than specifying the yml file on the commandline.
 
@@ -71,7 +99,8 @@ OKTA_ORG: washpost.okta.com
 OKTA_AWS_APP_URL: fill in value
 OKTA_AWS_ROLE_TO_ASSUME: fill in value
 OKTA_IDP_PROVIDER: fill in value
-OKTA_USERNAME: fill in value
+OKTA_USERNAME:
+MULTIFACTOR_PREFERENCE:
 ```
 
 Note: The "OKTA_USERNAME" is just to make it easy for developers to put their name in when they get the file and not have to be prompted for it every time.  Leave it blank.
