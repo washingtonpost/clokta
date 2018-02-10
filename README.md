@@ -20,9 +20,9 @@ You will need Python 2.7 or 3 installed on your machine
 1. Ensure you have Google Authenticator setup in Okta.  Currently, Google Authenticator is the only MFA supported.
 
 1. Obtain a clokta.yml from your team that contains the required information for you account.
-   (See below for how a team can generate a clokta.yml)
+  (See below for how a team can generate a clokta.yml)
 
-   A typical clokta.yml will look like this.
+  A typical clokta.yml will look like this.
 
 ```yaml
 OKTA_ORG: washpost.okta.com
@@ -39,7 +39,7 @@ Note: Alternatively, you can put all these values in your environment rather tha
 
 1. Run AWS commands for the next hour.
 
-   After an hour the keys expire and you must rerun clokta.
+  After an hour the keys expire and you must rerun clokta.
 
 ## Generating a clokta.yml for your team
 
@@ -105,7 +105,21 @@ These are now all supported. For first-time usage, add `MULTIFACTOR_PREFERENCE` 
 
 When adding `--profile={name}` or `-p {name}` to the clokta command like, you instruct it to create a profile in the `~/.aws/credentials` file.
 
-- if it exists already, the current version will be backed up to `~/.aws/credentials,bak`
+- if it exists already, the current version will be backed up to `~/.aws/credentials.bak`
   - none of the existing profiles will be lost
   - using the same name as an existing profile will overwrite its data
 - if the credentials file doesn't exist, it will be created
+
+### SEC-119
+
+> Support Okta Verify with Push
+
+If Okta Veridy push notifications are enabled, the option `Okta Verify with Push` will be available from the MFA selection prompt. Choosing this option will cause a push notification to be sent to your Okta Verify application.
+
+The message `Push notification sent; waiting for your response` will appear, at which point clokta will poll every 3 seconds to determine if you have responded, up to a total of 60 seconds. Once clokta receives a confirmation of receipt, the message `Session confirmed` will print ut and the credentials will be stored.
+
+To make this MFA mechanism the default, add this line to your clokta config file:
+
+```yaml
+MULTIFACTOR_PREFERENCE: Okta Verify with Push
+```

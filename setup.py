@@ -15,7 +15,6 @@ setup(
         'requests',
         'bs4',
         'pyyaml',
-        'six',
         'pyaml'
     ],
     entry_points={

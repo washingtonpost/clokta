@@ -1,12 +1,13 @@
 ''' ConfigLoader class must be instantiated prior to use '''
 import copy
 import getpass
+import json
 import os
 
 import click
 import yaml
 
-from six.moves import input
+from cli.common import Common
 
 
 class ConfigLoader(object):
@@ -24,12 +25,10 @@ class ConfigLoader(object):
                     cfg = yaml.load(contents, Loader=yaml.SafeLoader)
             except OSError as oserr:
                 msg = 'Error related to your configuration file: {}'.format(oserr)
-                logging.exception(msg) if verbose else print(msg)
-                sys.exit(1)
+                Common.dump_err(message=msg, exit_code=1, verbose=verbose)
             except Exception as err:
                 msg = 'Unexpected error: {}'.format(err)
-                logging.exception(msg) if verbose else print(msg)
-                sys.exit(1)
+                Common.dump_err(message=msg, exit_code=2, verbose=verbose)
 
         for key in [
                 'OKTA_USERNAME',
@@ -49,12 +48,14 @@ class ConfigLoader(object):
                 configuration[key] = cfg.get(key)
             else:
                 configuration[key] = cfg.get(key) if cfg.get(key) \
-                    else os.getenv(key, input("Enter a value for {}:".format(key)))
+                    else os.getenv(key, click.prompt('Enter a value for {}'.format(key), type=str))
 
         if verbose:
             copy_config = copy.deepcopy(configuration)
             copy_config['OKTA_PASSWORD'] = '<redacted>'
-            click.echo('Configuration:')
-            click.echo(copy_config)
+            msg = 'Configuration: {}'.format(
+                json.dumps(obj=copy_config, indent=4)
+            )
+            Common.dump_verbose(message=msg)
 
         return configuration

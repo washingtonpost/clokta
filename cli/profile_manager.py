@@ -3,6 +3,8 @@ import configparser
 import enum
 import os
 
+from cli.common import Common
+
 
 class OutputFormat(enum.Enum):
     ''' Enumeration for credentials output format codes '''
