@@ -69,12 +69,19 @@ def __okta_session_token(configuration, verbose=False):
     try:
         okta_response = __okta_auth_response(configuration=configuration)
     except requests.exceptions.HTTPError as http_err:
+        print("Your mother")
         msg = 'Okta returned this credentials/password related error: {}'.format(http_err)
-        logging.exception(msg) if verbose else print(msg)
+        if verbose: 
+            logging.exception(msg) 
+        else: 
+            print(msg)
         sys.exit(1)
     except Exception as err:
         msg = 'Unexpected error: {}'.format(err)
-        logging.exception(msg) if verbose else print(msg)
+        if verbose:
+            logging.exception(msg) 
+        else:
+            print(msg)
         sys.exit(1)
 
     if okta_response['status'] == 'MFA_REQUIRED':
@@ -88,7 +95,10 @@ def __okta_session_token(configuration, verbose=False):
             )
         else:
             msg = 'No MFA factors have been set up for this account'
-            logging.exception(msg) if verbose else print(msg)
+            if verbose:
+                logging.exception(msg)
+            else:
+                print(msg)
             sys.exit(1)
     return okta_response['sessionToken']
 
@@ -119,11 +129,17 @@ def __okta_session_token_mfa(auth_response, factors, factor_preference, verbose=
         session_token = mfa_response['sessionToken']
     except requests.exceptions.HTTPError as http_err:
         msg = 'Okta returned this MFA related error: {}'.format(http_err)
-        logging.exception(msg) if verbose else print(msg)
+        if verbose:
+            logging.exception(msg)
+        else:
+            print(msg)
         sys.exit(1)
     except Exception as err:
         msg = 'Unexpected error: {}'.format(err)
-        logging.exception(msg) if verbose else print(msg)
+        if verbose:
+            logging.exception(msg)
+        else:
+            print(msg)
         sys.exit(1)
 
     return session_token
