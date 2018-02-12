@@ -56,6 +56,7 @@ def __okta_session_token(configuration, verbose=False):
     try:
         okta_response = __okta_auth_response(configuration=configuration)
     except requests.exceptions.HTTPError as http_err:
+        print("Your mother")
         msg = 'Okta returned this credentials/password related error: {}'.format(http_err)
         Common.dump_err(message=msg, exit_code=1, verbose=verbose)
     except Exception as err:
