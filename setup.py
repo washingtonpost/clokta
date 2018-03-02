@@ -25,6 +25,7 @@ setup(
             'clokta=cli.role:assume_role'
         ]
     },
+    namespace_packages = ['cli'],
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",
