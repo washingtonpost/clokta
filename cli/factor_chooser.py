@@ -97,8 +97,7 @@ class FactorChooser(object):
         factor_intersection = []
         for cli in self.cli_factors:
             for okta in self.okta_factors:
-                if cli['provider'] == okta['provider'] and \
-                    cli['factor_type'] == okta['factorType']:
+                if cli['provider'] == okta['provider'] and cli['factor_type'] == okta['factorType']:
                         factor_intersection.append(cli)
 
         return factor_intersection

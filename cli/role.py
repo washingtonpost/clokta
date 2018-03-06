@@ -10,18 +10,22 @@ import time
 from bs4 import BeautifulSoup
 
 from cli.common import Common
-from cli.config_loader import ConfigLoader
 from cli.factor_chooser import FactorChooser
-from cli.profile_manager import OutputFormat, ProfileManager
+from cli.profile_manager import ProfileManager
 
 
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed')
-@click.option('--config', '-c', default=None, help='Path to configuration file')
-@click.option('--profile', '-p', default=None, help='Profile to save to')
-def assume_role(config=None, profile=None, verbose=False):
+@click.option('--profile', '-p', required=True, help='Configuration profile')
+# Consider using a linux-style ' - ' option for the output file...
+# ...especially only need to support a .env file for Docker so callers can name it dynamically
+# @click.option('output', type=click.File('wb'))
+def assume_role(profile, verbose=False):
     ''' entry point for the cli tool '''
-    configuration = ConfigLoader.load_configuration(config_path=config, verbose=verbose)
+    profile_mgr = ProfileManager(profile_name=profile, verbose=verbose)
+    configuration = profile_mgr.load_config()
+
+    profile_mgr.apply_configuration(profile_configuration=configuration)
 
     session_token = __okta_session_token(
         configuration=configuration,
@@ -36,17 +40,15 @@ def assume_role(config=None, profile=None, verbose=False):
         verbose=verbose
     )
     client = boto3.client('sts')
-    response = client.assume_role_with_saml(
-        RoleArn=configuration['OKTA_AWS_ROLE_TO_ASSUME'],
-        PrincipalArn=configuration['OKTA_IDP_PROVIDER'],
+    assumed_role_credentials = client.assume_role_with_saml(
+        RoleArn=configuration['okta_aws_role_to_assume'],
+        PrincipalArn=configuration['okta_idp_provider'],
         SAMLAssertion=saml_assertion
     )
-    __write_aws_configs(
-        role_credentials=response,
-        output_format=OutputFormat.Profile if profile else OutputFormat.ShellScript,
-        profile_name=profile,
-        verbose=verbose
-    )
+
+    profile_mgr.apply_credentials(credentials=assumed_role_credentials)
+    profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
+    profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
 
 
 def __okta_session_token(configuration, verbose=False):
@@ -74,7 +76,7 @@ def __okta_session_token(configuration, verbose=False):
             return __okta_session_token_mfa(
                 auth_response=okta_response,
                 factors=factors,
-                factor_preference=configuration['MULTIFACTOR_PREFERENCE'],
+                factor_preference=configuration['multifactor_preference'],
                 verbose=verbose
             )
         else:
@@ -239,13 +241,14 @@ def __okta_auth_response(configuration):
     headers = {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'Cache-Control': '"no-cache'
+        'Cache-Control': '"no-cache',
+        'Authorization': 'API_TOKEN'
     }
     payload = {
-        'username': configuration['OKTA_USERNAME'],
-        'password': configuration['OKTA_PASSWORD']
+        'username': configuration['okta_username'],
+        'password': configuration['okta_password']
     }
-    url = 'https://' + configuration['OKTA_ORG'] + '/api/v1/authn'
+    url = 'https://' + configuration['okta_org'] + '/api/v1/authn'
 
     response = requests.post(url, data=json.dumps(payload), headers=headers)
     if response.status_code == requests.codes.ok:  # pylint: disable=E1101
@@ -272,35 +275,8 @@ def __saml_assertion_aws(session_token, configuration, verbose=False):
 
 
 def __okta_app_response(session_token, configuration):
-    url = configuration['OKTA_AWS_APP_URL'] + '?onetimetoken=' + session_token
+    url = configuration['okta_aws_app_url'] + '?onetimetoken=' + session_token
     response = requests.get(url)
     if response.status_code == requests.codes.ok:  # pylint: disable=E1101
         return response
     response.raise_for_status()
-
-
-def __write_aws_configs(role_credentials, output_format=OutputFormat.ShellScript, profile_name=None, verbose=False):
-    ''' Generates a shell file you can execute to apply role credentials to the environment '''
-    output_file_name = 'aws_session.sh'
-    if verbose:
-        msg = json.dumps(obj=role_credentials, default=Common.json_serial, indent=4)
-        Common.dump_verbose(message=msg)
-
-    if output_format == OutputFormat.ShellScript:
-        root = role_credentials['Credentials']
-        lines = [
-            'export AWS_ACCESS_KEY_ID={}\n'.format(root['AccessKeyId']),
-            'export AWS_SECRET_ACCESS_KEY={}\n'.format(root['SecretAccessKey']),
-            'export AWS_SESSION_TOKEN={}\n'.format(root['SessionToken'])
-        ]
-        with open(output_file_name, mode='w') as file_handle:
-            file_handle.writelines(lines)
-
-        msg = 'AWS keys saved to {loc}. To use, `source {loc}`'.format(
-            loc=output_file_name
-        )
-        Common.echo(message=msg)
-
-    if output_format == OutputFormat.Profile:
-        profile_mgr = ProfileManager(profile_name=profile_name, verbose=verbose)
-        profile_mgr.apply_credentials(role_credentials=role_credentials)

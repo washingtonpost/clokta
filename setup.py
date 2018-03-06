@@ -15,7 +15,7 @@ setup(
         'requests',
         'bs4',
         'configparser',
-        'enum',
+        'enum-compat',
         'pyyaml',
         'pyaml'
     ],
