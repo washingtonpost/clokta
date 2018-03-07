@@ -5,10 +5,7 @@ import json
 import os
 
 from cli.common import Common
-<<<<<<< HEAD
-=======
 from cli.config_generator import ConfigGenerator
->>>>>>> SEC-000-INIT
 
 
 class OutputFormat(enum.Enum):
