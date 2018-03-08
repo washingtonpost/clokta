@@ -17,15 +17,11 @@ from cli.profile_manager import ProfileManager
 @click.command()
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed')
 @click.option('--profile', '-p', required=True, help='Configuration profile')
-# Consider using a linux-style ' - ' option for the output file...
-# ...especially only need to support a .env file for Docker so callers can name it dynamically
-# @click.option('output', type=click.File('wb'))
 def assume_role(profile, verbose=False):
     ''' entry point for the cli tool '''
     profile_mgr = ProfileManager(profile_name=profile, verbose=verbose)
-    configuration = profile_mgr.load_config()
-
-    profile_mgr.apply_configuration(profile_configuration=configuration)
+    configuration = profile_mgr.initialize_configuration()
+    profile_mgr.update_configuration(profile_configuration=configuration)
 
     session_token = __okta_session_token(
         configuration=configuration,
@@ -58,7 +54,6 @@ def __okta_session_token(configuration, verbose=False):
     try:
         okta_response = __okta_auth_response(configuration=configuration)
     except requests.exceptions.HTTPError as http_err:
-        print("Your mother")
         msg = 'Okta returned this credentials/password related error: {}'.format(http_err)
         Common.dump_err(message=msg, exit_code=1, verbose=verbose)
     except Exception as err:

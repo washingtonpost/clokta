@@ -16,13 +16,13 @@ class Common(object):
         ''' Dump error to console and exit program '''
         if verbose:
             logging.exception(message)
-        click.secho(message, bold=True, fg='red', bg='white')
+        click.secho(message, bold=True, fg='red')
         sys.exit(exit_code)
 
     @classmethod
     def dump_verbose(cls, message, new_line=True, bold=False):
         ''' Dump verbose message to console '''
-        click.secho(message, nl=new_line, bold=bold, fg='white', bg='blue')
+        click.secho(message, nl=new_line, bold=bold, fg='blue')
 
     @classmethod
     def echo(cls, message, new_line=True, bold=False):

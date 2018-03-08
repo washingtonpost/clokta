@@ -18,22 +18,27 @@ class OutputFormat(enum.Enum):
 class ProfileManager(object):
     ''' Supports profile file management '''
 
-    def __init__(self, profile_name, config_location='~/.clokta/clokta.cfg', profiles_location='~/.aws/credentials', verbose=False):
-
+    def __init__(
+        self,
+        profile_name,
+        config_location='~/.clokta/clokta.cfg',
+        profiles_location='~/.aws/credentials',
+        verbose=False
+    ):
         ''' Instance constructor '''
         self.profile_name = profile_name
         self.verbose = verbose
         self.profiles_location = os.path.expanduser(profiles_location)
         self.config_location = os.path.expanduser(config_location)
 
-    def load_config(self):
+    def initialize_configuration(self):
+        ''' Generate and load config file section '''
         parser = configparser.ConfigParser()
         parser.read(self.config_location)
 
         if not parser['DEFAULT']:
             parser['DEFAULT'] = {
                 'okta_username': '',
-                'okta_password': '',
                 'okta_org': '',
                 'multifactor_preference': ''
             }
@@ -50,20 +55,23 @@ class ProfileManager(object):
             config_section=config_section,
             verbose=self.verbose
         )
+        self.__write_config(
+            path_to_file=self.config_location,
+            parser=parser
+        )
         return updated_config
 
-    def apply_configuration(self, profile_configuration):
-        ''' Save a named configuration '''
+    def update_configuration(self, profile_configuration):
+        ''' Update a config file section '''
         parser = configparser.ConfigParser()
         parser.read(self.config_location)
-
+        
         default_keys = [
             'okta_username',
-            'okta_org',
-            'multifactor_preference'
+            'okta_org'
         ]
         for key in default_keys:
-            parser['DEFAULT'][key] = profile_configuration[key]
+            parser['DEFAULT'][key] = profile_configuration.get(key)
 
         profile_keys = [
             'okta_aws_app_url',
