@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.7
+## v0.8
 
 - support for MFA via SMS and Okta Verify
 - allows user to specify which MFA via MULTIFACTOR_PREFERENCE config option or will prompt user for which MFA to use
