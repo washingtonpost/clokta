@@ -17,7 +17,6 @@ setup(
         'configparser',
         'enum-compat',
         'pyyaml',
-        'six',
         'pyaml'
     ],
     entry_points={

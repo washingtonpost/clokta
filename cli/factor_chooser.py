@@ -1,5 +1,9 @@
 ''' ProfileManager class must be instantiated prior to use '''
+import click
 import yaml
+
+from cli.common import Common
+
 
 class FactorChooser(object):
     ''' Supports MFA source determination '''
@@ -22,7 +26,8 @@ class FactorChooser(object):
         ]
         if verified_factors:
             if self.verbose:
-                print('Using only available factor:', verified_factors[0]['prompt'])
+                msg = 'Using only available factor: {}'.format(verified_factors[0]['prompt'])
+                Common.dump_verbose(message=msg)
             return factor
 
     def verify_preferred_factor(self):
@@ -33,7 +38,8 @@ class FactorChooser(object):
         ]
         if preferred_factors:
             if self.verbose:
-                print('Using preferred factor:', self.factor_preference)
+                msg = 'Using preferred factor: {}'.format(self.factor_preference)
+                Common.dump_verbose(message=msg)
 
             matching_okta_factor = [
                 fact for fact in self.okta_factors
@@ -42,37 +48,31 @@ class FactorChooser(object):
             ]
 
             return matching_okta_factor[0]
-            
+
         else:
-            print(
-                'The MFA option in your configuration file is not available.',
-                'Check with your Okta configuration to ensure it is configured and enabled.'
-            )
+            msg = 'The MFA option ({}) in your configuration file is not available'.format(self.factor_preference)
+            Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
 
     def choose_supported_factor(self):
         ''' Give the user a choice from the intersection of configured and supported factors '''
         index = 1
         for opt in self.option_factors:
-            print(
-                '{index} - {prompt}'.format(
-                    index=index,
-                    prompt=opt['prompt']
-                )
-            )
+            msg = '{index} - {prompt}'.format(index=index, prompt=opt['prompt'])
+            Common.echo(message=msg, bold=True)
             index += 1
 
         raw_choice = None
         try:
-            raw_choice = input('Choose a MFA type to use:')
-            choice = int(raw_choice) - 1
+            raw_choice = click.prompt('Choose a MFA type to use', type=int)
+            choice = raw_choice - 1
         except ValueError as err:
-            print('Please select a valid option: you chose', raw_choice)
+            Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
             return self.choose_supported_factor()
 
         if len(self.option_factors) > choice >= 0:
             pass
         else:
-            print('Please select a valid option: you chose', raw_choice)
+            Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
             return self.choose_supported_factor()
 
         chosen_option = self.option_factors[choice]
@@ -82,7 +82,7 @@ class FactorChooser(object):
             fact['factorType'] == chosen_option['factor_type']
         ]
         if self.verbose:
-            print('Using chosen factor:', chosen_option['prompt'])
+            Common.dump_verbose(message='Using chosen factor: {}'.format(chosen_option['prompt']))
 
         return matching_okta_factor[0]
 
@@ -97,8 +97,7 @@ class FactorChooser(object):
         factor_intersection = []
         for cli in self.cli_factors:
             for okta in self.okta_factors:
-                if cli['provider'] == okta['provider'] and \
-                cli['factor_type'] == okta['factorType']:
-                    factor_intersection.append(cli)
+                if cli['provider'] == okta['provider'] and cli['factor_type'] == okta['factorType']:
+                        factor_intersection.append(cli)
 
         return factor_intersection
