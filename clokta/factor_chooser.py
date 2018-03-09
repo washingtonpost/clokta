@@ -1,9 +1,8 @@
 ''' ProfileManager class must be instantiated prior to use '''
 import click
-import yaml
 
-from cli.common import Common
-from cli.factors import Factors
+from clokta.common import Common
+from clokta.factors import Factors
 
 
 class FactorChooser(object):

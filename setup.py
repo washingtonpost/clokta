@@ -15,16 +15,14 @@ setup(
         'requests',
         'bs4',
         'configparser',
-        'enum-compat',
-        'pyyaml',
-        'pyaml'
+        'enum-compat'
     ],
     entry_points={
         'console_scripts': [
-            'clokta=cli.role:assume_role'
+            'clokta=clokta.role:assume_role'
         ]
     },
-    namespace_packages = ['cli'],
+    namespace_packages = ['clokta'],
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",

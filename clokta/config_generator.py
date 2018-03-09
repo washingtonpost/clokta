@@ -5,9 +5,8 @@ import json
 import os
 
 import click
-import yaml
 
-from cli.common import Common
+from clokta.common import Common
 
 
 class ConfigGenerator(object):

@@ -4,8 +4,8 @@ import enum
 import json
 import os
 
-from cli.common import Common
-from cli.config_generator import ConfigGenerator
+from clokta.common import Common
+from clokta.config_generator import ConfigGenerator
 
 
 class OutputFormat(enum.Enum):
