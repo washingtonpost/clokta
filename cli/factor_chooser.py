@@ -3,6 +3,7 @@ import click
 import yaml
 
 from cli.common import Common
+from cli.factors import Factors
 
 
 class FactorChooser(object):
@@ -87,11 +88,7 @@ class FactorChooser(object):
         return matching_okta_factor[0]
 
     def __load_supported_factors(self):
-        with open('cli/factors.yml', 'r') as factors_file:
-            contents = factors_file.read()
-            cli_supported_factors = yaml.load(contents, Loader=yaml.SafeLoader)['MfaProviders']
-
-        return cli_supported_factors
+        return Factors.mfa_providers()
 
     def __filter_unsupported_factors(self):
         factor_intersection = []
