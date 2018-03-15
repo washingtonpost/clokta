@@ -65,7 +65,7 @@ class ProfileManager(object):
         ''' Update a config file section '''
         parser = configparser.ConfigParser()
         parser.read(self.config_location)
-        
+
         default_keys = [
             'okta_username',
             'okta_org'
@@ -109,6 +109,10 @@ class ProfileManager(object):
         creds = credentials['Credentials']
         parser[self.profile_name]['AWS_ACCESS_KEY_ID'] = creds['AccessKeyId']
         parser[self.profile_name]['AWS_SECRET_ACCESS_KEY'] = creds['SecretAccessKey']
+
+        if 'AWS_SESSION_TOKEN' in parser[self.profile_name]:
+            del parser[self.profile_name]['AWS_SESSION_TOKEN']
+
         if 'SessionToken' in creds:
             parser[self.profile_name]['AWS_SESSION_TOKEN'] = creds['SessionToken']
 
