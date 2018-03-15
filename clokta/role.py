@@ -9,9 +9,9 @@ import requests
 import time
 from bs4 import BeautifulSoup
 
-from cli.common import Common
-from cli.factor_chooser import FactorChooser
-from cli.profile_manager import ProfileManager
+from clokta.common import Common
+from clokta.factor_chooser import FactorChooser
+from clokta.profile_manager import ProfileManager
 
 
 @click.command()
