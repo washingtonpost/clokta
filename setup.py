@@ -19,10 +19,10 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'clokta=clokta.role:assume_role'
+            'clokta=clokta.cli:assume_role'
         ]
     },
-    namespace_packages = ['clokta'],
+    namespace_packages=['clokta'],
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",
