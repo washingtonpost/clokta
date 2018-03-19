@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.9.1
+
+- No new functionality.  Just refactoring of code and library structure.
+
 ## v0.9
 
 - support MFA via Okta Verify Push (where is pushes a notification to your phone and you just approve)
