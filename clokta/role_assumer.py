@@ -5,12 +5,14 @@ import json
 import time
 
 import boto3
+from botocore.exceptions import ClientError
 import click
 import requests
 from bs4 import BeautifulSoup
 
 from clokta.common import Common
 from clokta.factor_chooser import FactorChooser
+from clokta.role_chooser import RoleChooser
 from clokta.profile_manager import ProfileManager
 
 
@@ -38,16 +40,38 @@ class RoleAssumer(object):
             session_token=session_token,
             configuration=configuration
         )
-        client = boto3.client('sts')
-        assumed_role_credentials = client.assume_role_with_saml(
-            RoleArn=configuration['okta_aws_role_to_assume'],
-            PrincipalArn=configuration['okta_idp_provider'],
-            SAMLAssertion=saml_assertion
+
+        idp_and_role_chooser = RoleChooser(
+            saml_assertion=saml_assertion,
+            role_preference=configuration.get('okta_aws_role_to_assume'),
+            verbose=self.verbose
         )
+        idp_role_tuple = idp_and_role_chooser.choose_idp_role_tuple()
+
+        client = boto3.client('sts')
+        # Try for a 12 hour session.  If it fails, try for a 1 hour session
+        try:
+            assumed_role_credentials = client.assume_role_with_saml(
+                RoleArn=idp_role_tuple[2],
+                PrincipalArn=idp_role_tuple[1],
+                SAMLAssertion=saml_assertion,
+                DurationSeconds=43200
+            )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ValidationError':
+                assumed_role_credentials = client.assume_role_with_saml(
+                    RoleArn=idp_role_tuple[2],
+                    PrincipalArn=idp_role_tuple[1],
+                    SAMLAssertion=saml_assertion,
+                    DurationSeconds=3600
+                )
+                Common.echo(message='YOUR SESSION WILL ONLY LAST ONE HOUR')
+            else:
+                raise
 
         profile_mgr.apply_credentials(credentials=assumed_role_credentials)
-        profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
-        profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
+        profile_mgr.write_sourceable_file(credentials=assumed_role_credentials, echo_message=True)
+        profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials, echo_message=True)
 
     def __okta_session_token(self, configuration):
         ''' Authenticate with Okta; receive a session token '''
@@ -56,7 +80,10 @@ class RoleAssumer(object):
         try:
             okta_response = self.__okta_auth_response(configuration=configuration)
         except requests.exceptions.HTTPError as http_err:
-            msg = 'Okta returned this credentials/password related error: {}'.format(http_err)
+            if self.verbose:
+                msg = 'Okta returned this credentials/password related error: {}\nThis could be a mistyped password or a misconfigured username or URL.'.format(http_err)
+            else:
+                msg = "Failure.  Wrong password or misconfigured session."
             Common.dump_err(message=msg, exit_code=1, verbose=self.verbose)
         except Exception as err:
             msg = 'Unexpected error: {}'.format(err)
@@ -147,7 +174,6 @@ class RoleAssumer(object):
                     state_token=state_token,
                     push_response=response_data
                 )
-
 
     def __check_push_result(self, state_token, push_response):
         ''' Wait for push response acknowledgement '''
@@ -264,6 +290,14 @@ class RoleAssumer(object):
         for inputtag in soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
                 assertion = inputtag.get('value')
+        if not assertion:
+            if self.verbose:
+                Common.dump_verbose('Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.')
+            Common.dump_err(
+                message='Unexpected response from Okta.',
+                exit_code=4,
+                verbose=self.verbose
+            )
         return assertion
 
     def __okta_app_response(self, session_token, configuration):

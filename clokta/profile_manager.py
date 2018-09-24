@@ -1,4 +1,5 @@
 ''' ProfileManager class must be instantiated prior to use. '''
+import click
 import configparser
 import enum
 import json
@@ -44,10 +45,14 @@ class ProfileManager(object):
             }
 
         if self.profile_name not in parser.sections():
+            msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\nCopy the link from the Okta App'
+            app_url = click.prompt(msg.format(self.profile_name), type=str)
+            if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
+                Common.dump_err("Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6, False)
+            else:
+                app_url = app_url[:-len("?fromHome=true")]
             parser[self.profile_name] = {
-                'okta_aws_app_url': '',
-                'okta_aws_role_to_assume': '',
-                'okta_idp_provider': ''
+                'okta_aws_app_url': app_url
             }
 
         config_section = parser[self.profile_name]
@@ -75,8 +80,7 @@ class ProfileManager(object):
 
         profile_keys = [
             'okta_aws_app_url',
-            'okta_aws_role_to_assume',
-            'okta_idp_provider'
+            'okta_aws_role_to_assume'
         ]
         for key in profile_keys:
             parser[self.profile_name][key] = profile_configuration[key]
@@ -150,7 +154,7 @@ class ProfileManager(object):
             with open(backup_location, 'w') as bak_file:
                 bak_file.write(contents)
 
-    def write_sourceable_file(self, credentials):
+    def write_sourceable_file(self, credentials, echo_message=False):
         '''
         Generates a shell script to source in order to apply credentials to the shell environment.
         '''
@@ -165,16 +169,20 @@ class ProfileManager(object):
         ]
         if 'SessionToken' in creds:
             lines.append('export AWS_SESSION_TOKEN={}\n'.format(creds['SessionToken']))
+        else:
+            lines.append('unset AWS_SESSION_TOKEN')
 
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
-        Common.echo(
-            message='AWS keys saved to {loc}. To use, `source {loc}`'.format(
-                loc=output_file_name
-            )
-        )
 
-    def write_dockerenv_file(self, credentials):
+        if echo_message:
+            Common.echo(
+                message='AWS keys saved to {loc}. To use, `source {loc}`'.format(
+                    loc=output_file_name
+                )
+            )
+
+    def write_dockerenv_file(self, credentials, echo_message=False):
         '''
         Generates a Docker .env file that can be used with docker compose to inject into the environment.
         '''
@@ -192,8 +200,10 @@ class ProfileManager(object):
 
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
-        Common.echo(
-            message='AWS keys saved to {loc} for use with docker compose'.format(
-                loc=output_file_name
+
+        if echo_message:
+            Common.echo(
+                message='AWS keys saved to {loc} for use with docker compose'.format(
+                    loc=output_file_name
+                )
             )
-        )

@@ -1,8 +1,13 @@
 # Changelog
 
-## v0.9.1
+## v2.0
 
-- No new functionality.  Just refactoring of code and library structure.
+- No longer creating temporary users.  Developer and Admins roles must have been manually configured for 12 hour sessions before hand.
+
+## v1.0
+
+- Now creates 12 hour sessions by creating a temporary IAM user
+- Simplified clokta.cfg only needs Okta url.  Will prompt if no role ARN is provided
 
 ## v0.9
 

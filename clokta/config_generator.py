@@ -21,16 +21,15 @@ class ConfigGenerator(object):
             'okta_org': '',
             'multifactor_preference': '',
             'okta_aws_app_url': '',
-            'okta_aws_role_to_assume': '',
-            'okta_idp_provider': ''
+            'okta_aws_role_to_assume': ''
         }
         for key in configuration:
             if key.endswith('password'):
-                configuration[key] = os.getenv(
-                    key=key,
-                    default=getpass.getpass(prompt="Enter a value for {}: ".format(key))
-                )
-            elif key == 'multifactor_preference':
+                # Passwords must always be gotten from the prompt
+                configuration[key] = getpass.getpass(prompt="Enter a value for {}: ".format(key))
+            elif key in ['multifactor_preference', 'okta_aws_role_to_assume']:
+                # These settings may be specified in the config but if they are not
+                # they have default behavior
                 if key in config_section:
                     configuration[key] = config_section.get(key)
                 else:
@@ -39,10 +38,10 @@ class ConfigGenerator(object):
                 if key in config_section and config_section[key] is not '':
                     configuration[key] = config_section[key]
                 else:
-                    configuration[key] = os.getenv(
-                        key=key,
-                        default=click.prompt('Enter a value for {}'.format(key), type=str)
-                    )
+                    Common.dump_err(
+                        msg='Invalid configuration.  {} not defined in clokta.cfg.'.format(key),
+                        error_code=6,
+                        verbose=False)
 
         if verbose:
             copy_config = copy.deepcopy(configuration)

@@ -65,7 +65,7 @@ class FactorChooser(object):
         try:
             raw_choice = click.prompt('Choose a MFA type to use', type=int)
             choice = raw_choice - 1
-        except ValueError as err:
+        except ValueError:
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
             return self.choose_supported_factor()
 

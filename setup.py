@@ -5,7 +5,7 @@ import warnings
 
 setup(
     name='clokta',
-    version='0.9.1',
+    version='3.0.0',
     packages=find_packages(),
     include_package_data=True,
     py_modules=['clokta'],
@@ -19,7 +19,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'clokta=clokta.cli:assume_role'
+            'clokta=clokta.cloktacli:assume_role'
         ]
     },
     namespace_packages=['clokta'],
