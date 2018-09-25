@@ -69,9 +69,14 @@ class RoleAssumer(object):
             else:
                 raise
 
-        profile_mgr.apply_credentials(credentials=assumed_role_credentials)
-        profile_mgr.write_sourceable_file(credentials=assumed_role_credentials, echo_message=True)
-        profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials, echo_message=True)
+        profile_mgr.apply_credentials(credentials=assumed_role_credentials, echo_message=True)
+        bash_file = profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
+        docker_file = profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
+        Common.echo(
+            message='AWS keys generated. To use, run "export AWS_PROFILE={prof}"\nor use generated files {file1} with docker compose or {file2} with shell scripts'.format(
+                prof=self.profile, file1=docker_file, file2=bash_file
+            )
+        )
 
     def __okta_session_token(self, configuration):
         ''' Authenticate with Okta; receive a session token '''

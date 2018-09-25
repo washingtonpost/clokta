@@ -94,7 +94,7 @@ class ProfileManager(object):
             parser=parser
         )
 
-    def apply_credentials(self, credentials):
+    def apply_credentials(self, credentials, echo_message=False):
         ''' Save a set of temporary credentials '''
         if self.verbose:
             msg = json.dumps(obj=credentials, default=Common.json_serial, indent=4)
@@ -154,7 +154,7 @@ class ProfileManager(object):
             with open(backup_location, 'w') as bak_file:
                 bak_file.write(contents)
 
-    def write_sourceable_file(self, credentials, echo_message=False):
+    def write_sourceable_file(self, credentials):
         '''
         Generates a shell script to source in order to apply credentials to the shell environment.
         '''
@@ -175,14 +175,9 @@ class ProfileManager(object):
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
 
-        if echo_message:
-            Common.echo(
-                message='AWS keys saved to {loc}. To use, `source {loc}`'.format(
-                    loc=output_file_name
-                )
-            )
+        return output_file_name
 
-    def write_dockerenv_file(self, credentials, echo_message=False):
+    def write_dockerenv_file(self, credentials):
         '''
         Generates a Docker .env file that can be used with docker compose to inject into the environment.
         '''
@@ -201,9 +196,4 @@ class ProfileManager(object):
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
 
-        if echo_message:
-            Common.echo(
-                message='AWS keys saved to {loc} for use with docker compose'.format(
-                    loc=output_file_name
-                )
-            )
+        return output_file_name

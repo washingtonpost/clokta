@@ -11,3 +11,4 @@ aws_session.sh
 # --verbose only
 saml_response.html
 build
+.idea
