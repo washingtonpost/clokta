@@ -12,36 +12,60 @@ from clokta.common import Common
 class ConfigGenerator(object):
     ''' Loads or otherwise generates configuration information '''
 
+    config_fields = [
+        {
+            'name': 'okta_username',
+            'required': True,
+            'save_to': 'default'
+        },{
+            'name': 'okta_password',
+            'required': True,
+            'secret': True
+        },{
+            'name': 'okta_org',
+            'required': True,
+            'save_to': 'default',
+            'default_value': 'washpost.okta.com'
+        },{
+            'name': 'multifactor_preference',
+            'required': True,
+            'save_to': 'default',
+            'default_value': "Okta Verify with Push",
+            'prompt': 'Enter a preferred MFA - choose between Google Authenticator, SMS text message, Okta Verify, or Okta Verify with Push'
+        },{
+            'name': 'okta_aws_app_url',
+            'required': True,
+            'save_to': 'profile'
+        },{
+            'name': 'okta_aws_role_to_assume'
+        }
+    ]
+
     @classmethod
     def generate_configuration(cls, config_section, verbose=False):
-        ''' Configuration file values override environment variables '''
-        configuration = {
-            'okta_username': '',
-            'okta_password': '',
-            'okta_org': '',
-            'multifactor_preference': '',
-            'okta_aws_app_url': '',
-            'okta_aws_role_to_assume': ''
-        }
-        for key in configuration:
-            if key.endswith('password'):
-                # Passwords must always be gotten from the prompt
-                configuration[key] = getpass.getpass(prompt="Enter a value for {}: ".format(key))
-            elif key in ['multifactor_preference', 'okta_aws_role_to_assume']:
-                # These settings may be specified in the config but if they are not
-                # they have default behavior
-                if key in config_section:
-                    configuration[key] = config_section.get(key)
-                else:
-                    configuration[key] = ''
-            else:
-                if key in config_section and config_section[key] is not '':
-                    configuration[key] = config_section[key]
-                else:
+        configuration = {}
+        for field in ConfigGenerator.config_fields:
+            key = field['name']
+            is_secret = 'secret' in field and field['secret']
+            from_env = os.getenv(key=key, default=-1)
+            if from_env != -1:
+                # If defined in environment, use that first
+                configuration[key] = from_env
+            elif key in config_section and config_section[key]:
+                # If defined in the config file, make sure it's not a secret, otherwise use it
+                if is_secret:
                     Common.dump_err(
-                        msg='Invalid configuration.  {} not defined in clokta.cfg.'.format(key),
-                        error_code=6,
+                        message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(key),
+                        exit_code=6,
                         verbose=False)
+                configuration[key] = config_section[key]
+            elif 'required' in field and field['required']:
+                    # We need it.  Prompt for it.
+                    prompt = field['prompt'] if 'prompt' in field and field['prompt'] is not '' else 'Enter a value for {}'.format(key)
+                    if 'secret' in field and field['secret']:
+                        configuration[key] = getpass.getpass(prompt=prompt+":")
+                    else:
+                        configuration[key] = click.prompt(prompt, type=str, default=field['default_value'] if 'default_value' in field else None)
 
         if verbose:
             copy_config = copy.deepcopy(configuration)

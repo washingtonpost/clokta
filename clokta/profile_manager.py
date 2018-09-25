@@ -38,15 +38,14 @@ class ProfileManager(object):
         parser.read(self.config_location)
 
         if not parser['DEFAULT']:
-            parser['DEFAULT'] = {
-                'okta_username': '',
-                'okta_org': '',
-                'multifactor_preference': ''
-            }
+            parser['DEFAULT'] = {}
+            default_keys = [field['name'] for field in ConfigGenerator.config_fields if 'save_to' in field and field['save_to']=='default']
+            for key in default_keys:
+                parser['DEFAULT'][key]=''
 
         if self.profile_name not in parser.sections():
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\nCopy the link from the Okta App'
-            app_url = click.prompt(msg.format(self.profile_name), type=str)
+            app_url = click.prompt(msg.format(self.profile_name), type=str).strip()
             if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
                 Common.dump_err("Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6, False)
             else:
@@ -71,17 +70,11 @@ class ProfileManager(object):
         parser = configparser.ConfigParser()
         parser.read(self.config_location)
 
-        default_keys = [
-            'okta_username',
-            'okta_org'
-        ]
+        default_keys = [field['name'] for field in ConfigGenerator.config_fields if 'save_to' in field and field['save_to']=='default']
         for key in default_keys:
             parser['DEFAULT'][key] = profile_configuration.get(key)
 
-        profile_keys = [
-            'okta_aws_app_url',
-            'okta_aws_role_to_assume'
-        ]
+        profile_keys = [field['name'] for field in ConfigGenerator.config_fields if 'save_to' in field and field['save_to']=='profile']
         for key in profile_keys:
             parser[self.profile_name][key] = profile_configuration[key]
 
