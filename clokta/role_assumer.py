@@ -99,13 +99,23 @@ class RoleAssumer(object):
             msg = 'Please enroll in multi-factor authentication before using this tool'
             Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
 
+        otp_value = None
+        if configuration.get('okta_onetimepassword_secret'):
+            try:
+                import onetimepass as otp
+            except ImportError:
+                msg = 'okta_onetimepassword_secret provided in config but "onetimepass" is not installed. run: pip install onetimepass'
+                Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
+            otp_value = otp.get_totp(configuration['okta_onetimepassword_secret'])
+
         if okta_response['status'] == 'MFA_REQUIRED':
             factors = okta_response['_embedded']['factors']
             if factors:
                 return self.__okta_session_token_mfa(
                     auth_response=okta_response,
                     factors=factors,
-                    factor_preference=configuration['multifactor_preference']
+                    factor_preference=configuration['multifactor_preference'],
+                    otp_value = otp_value
                 )
             else:
                 msg = 'No MFA factors have been set up for this account'
@@ -113,7 +123,7 @@ class RoleAssumer(object):
 
         return okta_response['sessionToken']
 
-    def __okta_session_token_mfa(self, auth_response, factors, factor_preference):
+    def __okta_session_token_mfa(self, auth_response, factors, factor_preference, otp_value=None):
         ''' Determine which factor to use and apply it to get a session token '''
         factor = self.__choose_factor(
             factors=factors,
@@ -134,7 +144,8 @@ class RoleAssumer(object):
                 otp_value=None
             )
 
-        otp_value = click.prompt('Enter your multifactor authentication token', type=str)
+        if not otp_value:
+            otp_value = click.prompt('Enter your multifactor authentication token', type=str)
         try:
             mfa_response = self.__okta_mfa_verification(
                 factor_dict=factor,
