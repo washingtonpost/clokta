@@ -38,10 +38,9 @@ class ProfileManager(object):
         parser.read(self.config_location)
 
         if not parser['DEFAULT']:
-            parser['DEFAULT'] = {}
-            default_keys = [field['name'] for field in ConfigGenerator.config_fields if 'save_to' in field and field['save_to']=='default']
-            for key in default_keys:
-                parser['DEFAULT'][key]=''
+            parser['DEFAULT'] = {
+                'okta_org': ''
+            }
 
         if self.profile_name not in parser.sections():
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\nCopy the link from the Okta App'
