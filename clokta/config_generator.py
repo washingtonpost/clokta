@@ -37,6 +37,10 @@ class ConfigGenerator(object):
             'required': True,
             'save_to': 'profile'
         },{
+            'name': 'okta_password',
+            'required': True,
+            'secret': True
+        },{
             'name': 'okta_aws_role_to_assume'
         }
     ]
