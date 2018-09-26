@@ -26,7 +26,7 @@ setup(
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",
-    download_url="https://github.com/washingtonpost/clokta/tarball/v3.0.0",
+    download_url="https://github.com/washingtonpost/clokta/archive/3.0.0",
     keywords=['okta', 'clokta', 'aws', 'cli'],
     classifiers=[]
 )
