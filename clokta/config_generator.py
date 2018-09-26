@@ -42,6 +42,9 @@ class ConfigGenerator(object):
             'secret': True
         },{
             'name': 'okta_aws_role_to_assume'
+        },{
+            'name': 'okta_onetimepassword_secret',
+            'secret': True
         }
     ]
 
