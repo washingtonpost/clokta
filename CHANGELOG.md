@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.0.0
+
+- Moved back to opensource development
+- Better experience for first time users
+ 
 ## v2.0
 
 - No longer creating temporary users.  Developer and Admins roles must have been manually configured for 12 hour sessions before hand.
