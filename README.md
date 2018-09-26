@@ -6,87 +6,76 @@ Clokta enables you authenticate into an AWS account using Okta on the command li
 
 You will need Python 2.7 or 3 installed on your machine.
 
-Download the python package from
-
-[https://github.com/WPMedia/clokta/archive/v2.0.tar.gz](https://github.com/WPMedia/clokta/archive/v2.0.tar.gz)
-
 Install with
 
 ```
-> sudo -H pip install -U clokta-2.0.tar.gz
+> pip install clokta
 ```
 
-if you are installing on a mac and encounter
-```
-Cannot uninstall 'six'. It is a distutils installed project and thus we cannot accurately determine which files belong to it which would lead to only a partial uninstall.
-```
-It's related to the System Integrity Protection software in the OS ( https://github.com/pypa/pip/issues/3165 ).. the following command should resolve the issue
-```
-sudo -H pip install --ignore-installed -U python-dateutil six
-```
-
+If you encounter permissions issues, see [Installation Issues](#install_issues) below
 
 ## To Use
 
 ```shell
-> clokta --profile <your-team>
-> aws --profile <your-team> s3 ls (or any other aws command you want)
+> clokta --profile «your-team»
 ```
 
-This injects temporary keys into your .aws/credentials file that can be accessed with the --profile option.
-
-In addition, it creates a file which can be sourced to enable just the current session:
+This injects temporary keys into your `.aws/credentials` file that can be accessed with the `--profile` option or the `AWS_PROFILE` environment variable
 
 ```shell
-> clokta --profile <your-team>
-> source ~/.clokta/<your team>.sh
+> clokta --profile meridian
+> aws --profile meridian s3 ls
+> export AWS_PROFILE=meridian
 > aws s3 ls
 ```
 
 Run AWS commands for the next 12 hours.  After 12 hours the keys expire and you must rerun clokta.
 
-Applications that access AWS can be run locally if they used the second option that puts the keys in the environment of the current session.
+Applications that access AWS can be run locally if they used the `AWS_PROFILE` environment variable.
 
-**NOTE:** You will need a ~/.clokta/clokta.cfg file to specify your Okta setup.  Talk to you team about getting one or see below for generating a ~/.clokta/clokta.cfg
-
-## More Info
-
-Clokta will prompt you for a password and, if required, will prompt you for multi-factor authentication.  A typical scenario looks like
+A typical run will look something like below.  It uses SMS for MFA.
 
 ```shell
 > clokta --profile meridian
 Enter a value for okta_password:
-1 - Google Authenticator
-2 - Okta Verify
-3 - SMS text message
-4 - Okta Verify with Push
-Choose a MFA type to use: 3
 Enter your multifactor authentication token: 914345
-AWS keys saved to ~/.clokta/meridian.sh. To use, `source ~/.clokta/meridian.sh`
-AWS keys saved to ~/.clokta/meridian.env for use with docker compose
+AWS keys generated. To use, run "export AWS_PROFILE=meridian"
+or use generated files /Users/doej/.clokta/meridian.env with docker compose or /Users/doej/.clokta/meridian.sh with shell scripts
 >
 ```
 
-If you always intend on using the same the same MFA mechanism, you can put this in your clokta configuration file (see below).
+## First Time
 
-### AWS Command Line, Local Programs, or Docker Containers
+The first time you run clokta it must prompt you for your context.  It will ask for the following things
 
-Clokta automatically inserts your credentials into ~/.aws/credentials using the '-p' name.  So you can immediately run aws commands with the '--profile' option.
+- Okta App URL - this is the URL that uniquely identifies your AWS account in Okta.  Use your browser and sign into Okta, right click on the Okta app that takes opens an AWS web console on your account, copy the link for that app and paste it into the clokta prompt
+  ![README-image1](/Users/antonuccir/Developer/clokta_os/README-img1.png)
+-  okta_username - your okta username
+- okta_org - for Washington Post users,  use **washpost.okta.com**
+- multifactor_preference - which MFA mechanism you use with Okta.  Your options are
+  - Google Authenticator
+  - SMS text message
+  - Okta Verify
+  - Okta Verify with Push
+
+The okta_aws_app_url you will need to enter whenever you login to a new account.  The others only ever have to be entered once.
+
+## Docker Containers and Scripts
+
+The `export AWS_PROFILE=«profile»` command allows you to run programs locally  
 
 ```shell
 > clokta -p meridian
-> aws --profile meridian s3 ls
-```
-
-If you are developing applications that access AWS and need to run them locally, you can insert these credentials in your environment.  Clokta generates a shell script ~/.clokta/{profile}.sh for this.
-
-```shell
-> clokta -p meridian
-> source ~/.clokta/meridian.sh
+> export AWS_PROFILE=meridian
 > ./bin/meridian
 ```
 
-If you are building docker containers you can build them with the credentials in the environment using docker-compose's env_file command and referencing the {profile}.env file that clokta automatically creates.  A sample docker-compose.yml would like
+But sometimes you need to run things on a remote machine or in a docker container.  For this clokta generates two helpful files:
+
+> AWS keys generated. To use, run "export AWS_PROFILE=meridian"
+> or use generated files **/Users/doej/.clokta/meridian.env** with docker compose or **/Users/doej/.clokta/meridian.sh** with shell scripts
+
+If you are building docker containers you can build them with the credentials in the environment using docker-compose's env_file command and referencing the `«profile».env` file that clokta automatically creates.  A sample docker-compose.yml would like
 
 ```Yml
 version: '2'
@@ -101,57 +90,103 @@ services:
      - .:/code
 ```
 
-## Generating a ~/.clokta/clokta.cfg
+If you need to embed the temporary AWS keys themselves into scripts, clokta generates a shell script  `«profile».sh`.  This can be used for script running on remote machines that do not have ~/.aws or ~/.clokta directories.
 
-The ~/.clokta/clokta.cfg will look like this.
-
-```ini
-[DEFAULT]
-okta_username = doej
-okta_org = washpost.okta.com
-multifactor_preference = Okta Verify with Push
-
-[meridian]
-okta_aws_app_url = https://washpost.okta.com/home/amazon_aws/0of1f11ff1fff1ffF1f1/272
+```bash
+export AWS_ACCESS_KEY_ID=ASIAA2CDE6GHIJKLM9OP
+export AWS_SECRET_ACCESS_KEY=h73thhHhfdsj3j4jHJHOF9339JLKJF939kJKJL
+export AWS_SESSION_TOKEN=FQoGZXIvYXdzEF4aDO...KKiGrt0F
 ```
 
-### DEFAULT section
+## Using Other Regions and Roles
 
-Specify your username, org and, if you want, specify which MFA option to use (valid options are 'Google Authenticator', 'Okta Verify with Push', 'SMS text message', and 'Okta Verify').  If you don't specify an MFA option it will prompt you.
+### Specifying a Region
 
-### Profile sections
+Many AWS CLI commands require the `AWS_REGION` to be defined.  While you can simply specify thison the command line, some users would like the ability to create multiple clokta profiles, one for each region, e.g. `clokta -p eu-pagebuilder` and `clokta -p southeast-pagebuilder`.  This can be done.
 
-You will have a profile section for each team you work on (try to get the required information from your teammates instead of having to figure it out yourself).  
+1. Create your region specific profile by running clokta
+   `clokta -p eu-pagebuilder`
 
-If no role is specified, as in the example clokta.cfg above, a user will be prompted for which role to assume.  As an alternative you can specify the role in the clokta.cfg or, as in the more realistic clokta.cfg below, you can specify two entries, one for the developer role and one for the admin role.
+2. Edit your `~/.aws/config` file and add the following lines
 
-```ini
-[DEFAULT]
-okta_username = doej
-okta_org = washpost.okta.com
-multifactor_preference = Okta Verify with Push
+   ```
+   [profile eu-pagebuilder]
+   region = eu-central-1
+   ```
 
-[pagebuilder]
-okta_aws_app_url = https://washpost.okta.com/home/amazon_aws/0oe2e22ee2eee2eeE2e2/272
+This, in conjunction with the `export AWS_PROFILE=eu-pagebuilder` command will tie CLI commands to the Frankfurt region.
 
-[meridian]
-okta_aws_app_url = https://washpost.okta.com/home/amazon_aws/0of1f11ff1fff1ffF1f1/272
-okta_aws_role_to_assume = arn:aws:iam::111111111111:role/Okta_Developer_Access
+### Specifying an Okta Role
 
-[meridian-admin]
-okta_aws_app_url = https://washpost.okta.com/home/amazon_aws/0of1f11ff1fff1ffF1f1/272
-okta_aws_role_to_assume = arn:aws:iam::111111111111:role/Okta_Admin_Access
+Sometimes users have access to different roles in a single account.  Clokta will prompt you for which role you want to use.
+
+```shell
+> clokta --profile meridian
+...
+1 - Okta_Admin_Access
+2 - Okta_Developer_Access
+Choose a Role ARN to use: 1
+...
 ```
 
-To get the parameters `okta_aws_app_url` and `okta_aws_role_to_assume`, follow the below steps:
+If you do not want to get prompted you can specify which role in the clokta config file.  First you need to login to your account in the AWS web console and find the Role you want to use under the IAM service.  Copy the Role's ARN.
 
-- okta_aws_app_url
-  - Go to your Okta dashboard, right click on your AWS tile (e.g. ARC-App-Myapp), and copy the link.  It will be something like:
-    `https://washpost.okta.com/home/amazon_aws/0oa1f77g6u1hoarrV0h8/272?fromHome=true`
-  - Strip off the "?fromHome=true" and that is your okta_aws_app_url
-- okta_aws_role_to_assume
-  - Go to your AWS Account with the web console.
-  - Click on IAM->Roles
-  - Find and click the "Okta_Developer_Access" role
-  - Copy the "Role Arn".  That is your okta_aws_role_to_assume
+Add this ARN to the ~/.clokta/clokta.cfg file under the desired profile
 
+```
+[meridian]
+okta_aws_app_url = https://washpost.okta.com/home/amazon_aws/0oa123abcdefgh4567/272
+okta_aws_role_to_assume = arn:aws:iam::123456789012:role/Okta_Developer_Access
+```
+
+### Specifying a Non-Okta Role
+
+Services often have their own roles that they run under granting them the needed permissions, while developers' roles will have much more restricted permissions.  So, for developers to run the apps locally they need to assume the app's role.  This can be done simply with clokta.
+
+1. Make sure your Okta role has the permission to assume your service's role
+
+2. Make sure your service's role trusts the Okta role 
+
+3. Copy the ARN of your service's role.  You can find it in the AWS console under the IAM service.
+
+4. Edit the `~/.aws/config` file and create a new profile
+
+   ```
+   [profile myapp-myteam]
+   role_arn=«service role's ARN»
+   source_profile=myteam
+   ```
+
+5. `clokta -p myteam`
+
+6. `export AWS_PROFILE=myapp-myteam`
+
+You can now run your process locally and AWS will assume the service role before making any API calls.
+
+## <a name="install_issues">Installation Issues</a>
+
+If you encounter permissions errors when installing clokta on a Mac, it is probably because you are using the system python which requires root privileges to install libraries.
+
+##### Option 1 (Recommended): Use brew python
+
+Run `brew install python`
+
+This will install a version of python that installs libraries to `/usr/local` which does not require root permissions.  Then run `pip install clokta`.
+
+##### Option 2: Install using sudo
+
+Run `sudo -H pip install clokta`
+
+However, you may encounter
+
+```
+Cannot uninstall 'six'. It is a distutils installed project and thus we cannot accurately determine which files belong to it which would lead to only a partial uninstall.
+```
+
+It's related to the System Integrity Protection software in the OS ( https://github.com/pypa/pip/issues/3165 ).. the following command should resolve the issue
+
+```
+sudo -H pip install --ignore-installed -U python-dateutil six
+```
+
+## 
