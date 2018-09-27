@@ -49,7 +49,7 @@ or use generated files /Users/doej/.clokta/meridian.env with docker compose or /
 The first time you run clokta it must prompt you for your context.  It will ask for the following things
 
 - Okta App URL - this is the URL that uniquely identifies your AWS account in Okta.  Use your browser and sign into Okta, right click on the Okta app that takes opens an AWS web console on your account, copy the link for that app and paste it into the clokta prompt
-  ![README-image1](/Users/antonuccir/Developer/clokta_os/README-img1.png)
+  ![Okta screenshot](README-img1.png)
 -  okta_username - your okta username
 - okta_org - for Washington Post users,  use **washpost.okta.com**
 - multifactor_preference - which MFA mechanism you use with Okta.  Your options are
@@ -59,6 +59,8 @@ The first time you run clokta it must prompt you for your context.  It will ask 
   - Okta Verify with Push
 
 The okta_aws_app_url you will need to enter whenever you login to a new account.  The others only ever have to be entered once.
+
+These preferences can be changed later by editing your ~/.clokta/clokta.cfg file.
 
 ## Docker Containers and Scripts
 
