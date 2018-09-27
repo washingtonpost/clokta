@@ -14,6 +14,8 @@ Install with
 
 If you encounter permissions issues, see [Installation Issues](#install_issues) below
 
+If you have any questions, please post on the #aws-automation Slack channel
+
 ## To Use
 
 ```shell
