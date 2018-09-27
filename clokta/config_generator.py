@@ -18,10 +18,6 @@ class ConfigGenerator(object):
             'required': True,
             'save_to': 'default'
         },{
-            'name': 'okta_password',
-            'required': True,
-            'secret': True
-        },{
             'name': 'okta_org',
             'required': True,
             'save_to': 'default',

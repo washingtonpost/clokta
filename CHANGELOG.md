@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.0.0
+## v3.0.1
 
 - Moved back to opensource development
 - Better experience for first time users
