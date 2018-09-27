@@ -9,7 +9,7 @@ You will need Python 2.7 or 3 installed on your machine.
 Install with
 
 ```
-> pip install clokta
+> pip install -U clokta
 ```
 
 If you encounter permissions issues, see [Installation Issues](#install_issues) below
