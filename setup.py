@@ -13,7 +13,7 @@ setup(
         'Click',
         'boto3',
         'requests',
-        'bs4',
+        'beautifulsoup4',
         'configparser',
         'enum-compat'
     ],
