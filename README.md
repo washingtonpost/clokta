@@ -19,7 +19,7 @@ If you have any questions, please post on the #aws-automation Slack channel
 ## To Use
 
 ```shell
-> clokta --profile «your-team»
+> clokta --profile «your-account»
 ```
 
 This injects temporary keys into your `.aws/credentials` file that can be accessed with the `--profile` option or the `AWS_PROFILE` environment variable
@@ -31,7 +31,7 @@ This injects temporary keys into your `.aws/credentials` file that can be access
 > aws s3 ls
 ```
 
-Run AWS commands for the next 12 hours.  After 12 hours the keys expire and you must rerun clokta.
+Run AWS commands for the next 6-12 hours.  After 6-12 hours the keys expire and you must rerun clokta.
 
 Applications that access AWS can be run locally if they used the `AWS_PROFILE` environment variable.
 
@@ -50,7 +50,7 @@ or use generated files /Users/doej/.clokta/meridian.env with docker compose or /
 
 The first time you run clokta it must prompt you for your context.  It will ask for the following things
 
-- Okta App URL - this is the URL that uniquely identifies your AWS account in Okta.  Use your browser and sign into Okta, right click on the Okta app that takes opens an AWS web console on your account, copy the link for that app and paste it into the clokta prompt
+- Okta App URL - this is the URL that uniquely identifies your AWS account in Okta.  Use your browser and sign into Okta, right click on the Okta app that opens an AWS web console on your account, copy the link for that app and paste it into the clokta prompt
 
   ![Okta screenshot](README-img1.png)
 -  okta_username - your okta username
