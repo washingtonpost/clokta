@@ -48,7 +48,7 @@ or use generated files /Users/doej/.clokta/meridian.env with docker compose or /
 
 ## First Time
 
-The first time you run clokta it must prompt you for your context.  It will ask for the following things
+Each time you use a new account you'll need to do some setup. The first time you run clokta it will prompt you for your context; if you use additional AWS profile's you'll need to edit the `~/.clokta/clokta.cfg` file directly.  It will ask for the following things:
 
 - Okta App URL - this is the URL that uniquely identifies your AWS account in Okta.  Use your browser and sign into Okta, right click on the Okta app that opens an AWS web console on your account, copy the link for that app and paste it into the clokta prompt
 
@@ -63,7 +63,7 @@ The first time you run clokta it must prompt you for your context.  It will ask 
 
 The okta_aws_app_url you will need to enter whenever you login to a new account.  The others only ever have to be entered once.
 
-These preferences can be changed later by editing your ~/.clokta/clokta.cfg file.
+These preferences can be changed later by editing your `~/.clokta/clokta.cfg` file.
 
 ## Docker Containers and Scripts
 
