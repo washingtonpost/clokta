@@ -50,7 +50,8 @@ class FactorChooser(object):
             return matching_okta_factor[0]
 
         else:
-            msg = 'The MFA option ({}) in your configuration file is not available'.format(self.factor_preference)
+            msg = 'The MFA option \'{}\' in your configuration file is not available.\nAvailable options are {}'.format(
+                self.factor_preference, [opt['prompt'] for opt in self.option_factors])
             Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
 
     def choose_supported_factor(self):
@@ -95,5 +96,4 @@ class FactorChooser(object):
             for okta in self.okta_factors:
                 if cli['provider'] == okta['provider'] and cli['factor_type'] == okta['factorType']:
                         factor_intersection.append(cli)
-
         return factor_intersection
