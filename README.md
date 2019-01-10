@@ -42,7 +42,7 @@ A typical run will look something like below.  It uses SMS for MFA.
 Enter a value for okta_password:
 Enter your multifactor authentication token: 914345
 AWS keys generated. To use, run "export AWS_PROFILE=meridian"
-or use generated files /Users/doej/.clokta/meridian.env with docker compose or /Users/doej/.clokta/meridian.sh with shell scripts
+or use files ~/.clokta/meridian.env with docker compose or ~/.clokta/meridian.sh with shell scripts
 >
 ```
 
@@ -78,7 +78,7 @@ The `export AWS_PROFILE=«profile»` command allows you to run programs locally
 But sometimes you need to run things on a remote machine or in a docker container.  For this clokta generates two helpful files:
 
 > AWS keys generated. To use, run "export AWS_PROFILE=meridian"
-> or use generated files **/Users/doej/.clokta/meridian.env** with docker compose or **/Users/doej/.clokta/meridian.sh** with shell scripts
+> or use files **~/.clokta/meridian.env** with docker compose or **~/.clokta/meridian.sh** with shell scripts
 
 If you are building docker containers you can build them with the credentials in the environment using docker-compose's env_file command and referencing the `«profile».env` file that clokta automatically creates.  A sample docker-compose.yml would like
 

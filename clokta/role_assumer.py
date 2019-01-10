@@ -71,7 +71,7 @@ class RoleAssumer(object):
         bash_file = profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
         docker_file = profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
         Common.echo(
-            message='AWS keys generated. To use, run "export AWS_PROFILE={prof}"\nor use generated files {file1} with docker compose or {file2} with shell scripts'.format(
+            message='AWS keys generated. To use, run "export AWS_PROFILE={prof}"\nor use files {file1} with docker compose or {file2} with shell scripts'.format(
                 prof=self.profile, file1=docker_file, file2=bash_file
             )
         )

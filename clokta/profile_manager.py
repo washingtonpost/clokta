@@ -30,6 +30,7 @@ class ProfileManager(object):
         self.profile_name = profile_name
         self.verbose = verbose
         self.profiles_location = os.path.expanduser(profiles_location)
+        self.short_config_location = config_location
         self.config_location = os.path.expanduser(config_location)
 
     def initialize_configuration(self):
@@ -167,7 +168,11 @@ class ProfileManager(object):
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
 
-        return output_file_name
+        short_output_file_name = '{dir}/{profile}.sh'.format(
+            dir=os.path.dirname(self.short_config_location),
+            profile=self.profile_name
+        )
+        return short_output_file_name
 
     def write_dockerenv_file(self, credentials):
         '''
@@ -188,4 +193,8 @@ class ProfileManager(object):
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
 
-        return output_file_name
+        short_output_file_name = '{dir}/{profile}.env'.format(
+            dir=os.path.dirname(self.short_config_location),
+            profile=self.profile_name
+        )
+        return short_output_file_name
