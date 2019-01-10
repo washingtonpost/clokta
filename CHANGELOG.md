@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.0.2
+
+- Supports 1, 4, or 12 hour sessions.
+- Better error messages
+- --version command line flag
+
 ## v3.0.1
 
 - Moved back to opensource development
