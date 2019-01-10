@@ -49,25 +49,23 @@ class RoleAssumer(object):
         idp_role_tuple = idp_and_role_chooser.choose_idp_role_tuple()
 
         client = boto3.client('sts')
-        # Try for a 12 hour session.  If it fails, try for a 1 hour session
-        try:
-            assumed_role_credentials = client.assume_role_with_saml(
-                RoleArn=idp_role_tuple[2],
-                PrincipalArn=idp_role_tuple[1],
-                SAMLAssertion=saml_assertion,
-                DurationSeconds=43200
-            )
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ValidationError':
+        # Try for a 12 hour session.  If it fails, try for shorter periods
+        durations = [43200, 14400, 3600]
+        for duration in durations:
+            try:
                 assumed_role_credentials = client.assume_role_with_saml(
                     RoleArn=idp_role_tuple[2],
                     PrincipalArn=idp_role_tuple[1],
                     SAMLAssertion=saml_assertion,
-                    DurationSeconds=3600
+                    DurationSeconds=duration
                 )
-                Common.echo(message='YOUR SESSION WILL ONLY LAST ONE HOUR')
-            else:
-                raise
+                if duration == 3600:
+                    Common.echo(message='YOUR SESSION WILL ONLY LAST ONE HOUR')
+                break
+            except ClientError as e:
+                # If we get a validation error and we have shorter durations to try, try a shorter duration
+                if e.response['Error']['Code'] != 'ValidationError' or duration == durations[-1]:
+                    raise
 
         profile_mgr.apply_credentials(credentials=assumed_role_credentials, echo_message=True)
         bash_file = profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
