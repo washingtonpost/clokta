@@ -7,6 +7,7 @@ from clokta.role_assumer import RoleAssumer
 
 
 @click.command()
+@click.version_option()
 @click.option('--verbose', '-v', is_flag=True, help='Show detailed')
 @click.option('--profile', '-p', required=True, help='Configuration profile')
 def assume_role(profile, verbose=False):
