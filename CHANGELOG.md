@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.0.2
+## v3.1.0
 
 - Supports 1, 4, or 12 hour sessions.
 - Better error messages
