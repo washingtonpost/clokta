@@ -215,11 +215,11 @@ class RoleAssumer(object):
                 response.raise_for_status()
 
             if 'sessionToken' in response_data or time.time() > timeout:
-                Common.echo(message='Session confirmed')
                 break
             time.sleep(3)
 
-        if response_data:
+        if response_data and 'sessionToken' in response_data:
+            Common.echo(message='Session confirmed')
             return response_data['sessionToken']
         else:
             msg = 'Timeout expired ({} seconds)'.format(wait_for)
