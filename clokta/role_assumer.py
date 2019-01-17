@@ -2,6 +2,8 @@
 Code-behind the scenes for the cli application.
 '''
 import json
+import os
+import pickle
 import time
 
 import boto3
@@ -23,6 +25,7 @@ class RoleAssumer(object):
         ''' Constructor '''
         self.profile = profile
         self.verbose = verbose
+        self.data_dir = None
 
     def assume_role(self):
         ''' entry point for the cli tool '''
@@ -30,16 +33,29 @@ class RoleAssumer(object):
         configuration = profile_mgr.initialize_configuration()
         profile_mgr.update_configuration(profile_configuration=configuration)
 
-        session_token = self.__okta_session_token(
-            configuration=configuration
-        )
-        if self.verbose:
-            Common.dump_verbose(message='Okta session token: {}'.format(session_token))
+        # Need a directory to store intermediate files.  Use the same directory that clokta configuration
+        # is kept in
+        self.data_dir = os.path.dirname(profile_mgr.config_location)
 
         saml_assertion = self.__saml_assertion_aws(
-            session_token=session_token,
+            session_token=None,
             configuration=configuration
         )
+
+        if not saml_assertion:
+            if 'okta_password' not in configuration or not configuration['okta_password']:
+                configuration['okta_password'] = profile_mgr.prompt_for('okta_password')
+
+            session_token = self.__okta_session_token(
+                configuration=configuration
+            )
+            if self.verbose:
+                Common.dump_verbose(message='Okta session token: {}'.format(session_token))
+
+            saml_assertion = self.__saml_assertion_aws(
+                session_token=session_token,
+                configuration=configuration
+            )
 
         idp_and_role_chooser = RoleChooser(
             saml_assertion=saml_assertion,
@@ -296,7 +312,7 @@ class RoleAssumer(object):
 
         if self.verbose:
             Common.dump_verbose(
-                message='SAML response: {}'.format(response.content)
+                message='SAML response {} session token: {}'.format("with" if session_token else "without", response.content)
             )
 
         soup = BeautifulSoup(response.content, "html.parser")
@@ -304,7 +320,8 @@ class RoleAssumer(object):
         for inputtag in soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
                 assertion = inputtag.get('value')
-        if not assertion:
+        # If a session token is not passed in, we consider a failure as a normal possibility and just return None
+        if not assertion and session_token:
             if self.verbose:
                 Common.dump_verbose('Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.')
             Common.dump_err(
@@ -315,8 +332,24 @@ class RoleAssumer(object):
         return assertion
 
     def __okta_app_response(self, session_token, configuration):
-        url = configuration['okta_aws_app_url'] + '?onetimetoken=' + session_token
-        response = requests.get(url)
+        cookie_file = self.data_dir + '/clokta.cookies'
+        url = configuration['okta_aws_app_url']
+        if session_token:
+            url += '?onetimetoken=' + session_token
+        try:
+            with open(cookie_file, 'rb') as f:
+                cookies = pickle.load(f)
+        except:
+            cookies = None
+        response = requests.get(url, cookies=cookies)
+
         if response.status_code == requests.codes.ok:  # pylint: disable=E1101
-            return response
-        response.raise_for_status()
+            if not cookies:
+                cookies = response.cookies
+            else:
+                cookies.update(response.cookies)
+            with open(cookie_file, 'wb') as f:
+                pickle.dump(cookies, f)
+                return response
+        else:
+            response.raise_for_status()

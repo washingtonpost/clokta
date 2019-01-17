@@ -34,7 +34,6 @@ class ConfigGenerator(object):
             'save_to': 'profile'
         },{
             'name': 'okta_password',
-            'required': True,
             'secret': True
         },{
             'name': 'okta_aws_role_to_assume'
@@ -64,11 +63,7 @@ class ConfigGenerator(object):
                 configuration[key] = config_section[key]
             elif 'required' in field and field['required']:
                     # We need it.  Prompt for it.
-                    prompt = field['prompt'] if 'prompt' in field and field['prompt'] is not '' else 'Enter a value for {}'.format(key)
-                    if 'secret' in field and field['secret']:
-                        configuration[key] = getpass.getpass(prompt=prompt+":")
-                    else:
-                        configuration[key] = click.prompt(prompt, type=str, default=field['default_value'] if 'default_value' in field else None)
+                    configuration[key] = ConfigGenerator.prompt_for(key)
 
         if verbose:
             copy_config = copy.deepcopy(configuration)
@@ -81,3 +76,14 @@ class ConfigGenerator(object):
             Common.dump_verbose(message=msg)
 
         return configuration
+
+    @classmethod
+    def prompt_for(cls, field_name):
+        fields = [field for field in ConfigGenerator.config_fields if field['name']==field_name]
+        field = fields[0] if fields else {}
+        prompt = field['prompt'] if 'prompt' in field and field['prompt'] is not '' else 'Enter a value for {}'.format(field_name)
+        if 'secret' in field and field['secret']:
+            field_value = getpass.getpass(prompt=prompt+":")
+        else:
+            field_value = click.prompt(prompt, type=str, default=field['default_value'] if 'default_value' in field else None)
+        return field_value

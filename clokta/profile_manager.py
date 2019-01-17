@@ -87,6 +87,9 @@ class ProfileManager(object):
             parser=parser
         )
 
+    def prompt_for(self, field_name):
+        return ConfigGenerator.prompt_for(field_name)
+
     def apply_credentials(self, credentials, echo_message=False):
         ''' Save a set of temporary credentials '''
         if self.verbose:
