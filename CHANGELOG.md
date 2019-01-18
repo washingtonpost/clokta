@@ -1,5 +1,9 @@
 # Changelog
 
+## v4.0
+- Clokta only prompts you for your username and MFA the first time.  Subsequent calls within an 8 hour period will 
+piggyback on the Okta session.
+
 ## v3.1.0
 
 - Supports 1, 4, or 12 hour sessions.
