@@ -180,7 +180,7 @@ This will install a version of python that installs libraries to `/usr/local` wh
 
 ##### Option 2: Install using sudo
 
-Run `sudo -H pip install clokta`
+Run `sudo -H pip install -U clokta`
 
 However, you may encounter
 
