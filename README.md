@@ -194,4 +194,16 @@ It's related to the System Integrity Protection software in the OS ( https://git
 sudo -H pip install --ignore-installed -U python-dateutil six
 ```
 
-## 
+##### Option 3: Install using python3
+
+Some installations require python3 be invoked directly when installing:
+
+```
+python3 -m pip install -U clokta
+```
+
+If you encounter `PermissionError: [Errno 13] Permission denied` then:
+```
+sudo python3 -m pip uninstall clokta     # (may need to use python3 vs python2 for uninstall)
+```
+and then install as indicated above.
