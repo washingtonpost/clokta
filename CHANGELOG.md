@@ -1,5 +1,8 @@
 # Changelog
 
+## v4.0.1
+- Generated shell script and docker files include setting the AWS_PROFILE variable
+
 ## v4.0
 - Clokta only prompts you for your username and MFA the first time.  Subsequent calls within a 4 hour period will 
 piggyback on the Okta session.
