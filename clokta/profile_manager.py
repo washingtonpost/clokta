@@ -160,6 +160,7 @@ class ProfileManager(object):
             profile=self.profile_name
         )
         lines = [
+            'export AWS_PROFILE={}\n'.format(self.profile_name),
             'export AWS_ACCESS_KEY_ID={}\n'.format(creds['AccessKeyId']),
             'export AWS_SECRET_ACCESS_KEY={}\n'.format(creds['SecretAccessKey'])
         ]
@@ -187,6 +188,7 @@ class ProfileManager(object):
             profile=self.profile_name
         )
         lines = [
+            'AWS_PROFILE={}\n'.format(self.profile_name),
             'AWS_ACCESS_KEY_ID={}\n'.format(creds['AccessKeyId']),
             'AWS_SECRET_ACCESS_KEY={}\n'.format(creds['SecretAccessKey'])
         ]
