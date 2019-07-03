@@ -68,7 +68,7 @@ For the same reason the AWS API supports more than one set of credentials, so cl
 ```
 $ clokta -p MyAdminRole
 No profile "MyAdminRole" in clokta.cfg, but enter the information and clokta will create a profile.
-Copy the link from the Okta App: https://washpost.okta.com/home/amazon_aws/0oa1f872csqtS3cRv0h8/272?fromHome=true
+Copy the link from the Okta App: https://washpost.okta.com/home/amazon_aws/0oaXXXXXXXXXXRv0h8/272?fromHome=true
 Enter a value for okta_password: XXXXXXXXXXXX
 Enter your multifactor authentication token: XXXXXX
 Using the configured role arn:aws:iam::041979207332:role/Okta_Developer_Access
