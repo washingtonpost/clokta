@@ -2,7 +2,7 @@
 
 Profiles is an extension of the AWS CLI/API way of handling more than one set of credentials.
 
-While AWS supports "federated" logins such as Okta, it does so bu providing a service/endpoint that allows you to exchange your federated credentials for a session token which the AWS API will recognize. 
+While AWS supports "federated" logins such as Okta, it does so by providing a service/endpoint that allows you to exchange your federated credentials for a session token which the AWS API will recognize. 
 
 ## AWS API/CLI "Profiles"
 
