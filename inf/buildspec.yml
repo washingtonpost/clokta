@@ -1,0 +1,11 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - pip install --upgrade pip setuptools wheel twine
+  build:
+    commands:
+      - python setup.py sdist bdist_wheel
+  post_build:
+    commands:
+      - twine upload dist/*
