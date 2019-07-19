@@ -1,13 +1,26 @@
 version: 0.2
+env:
+  parameter-store:
+    PYPI_USERNAME: /builder/pypi/username
+    PYPI_PASSWORD: /builder/pypi/password
 phases:
   install:
     runtime-versions:
       python: 3.7
     commands:
-      - pip install --upgrade pip setuptools wheel twine
+      - export HOME=$CODEBUILD_SRC_DIR
+      - |
+        cat <<- EOF >> ${HOME}/.pypirc
+        [pypi]
+        username=$PYPI_USERNAME
+        password=$GITHUB_USERNAME
+        EOF
+      - more ${HOME}/.pypirc
+      #- pip install --upgrade pip setuptools wheel twine
   build:
     commands:
-      - python setup.py sdist bdist_wheel
+      - echo HOME=${HOME}
+      #- python setup.py sdist bdist_wheel
   post_build:
     commands:
-      - twine upload dist/*
+      #- twine upload dist/*
