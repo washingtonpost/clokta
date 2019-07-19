@@ -13,14 +13,12 @@ phases:
         cat <<- EOF >> ${HOME}/.pypirc
         [pypi]
         username=$PYPI_USERNAME
-        password=$GITHUB_USERNAME
+        password=$PYPI_PASSWORD
         EOF
-      - more ${HOME}/.pypirc
-      #- pip install --upgrade pip setuptools wheel twine
+      - pip install --upgrade pip setuptools wheel twine
   build:
     commands:
-      - echo HOME=${HOME}
-      #- python setup.py sdist bdist_wheel
+      - python setup.py sdist bdist_wheel
   post_build:
     commands:
-      #- twine upload dist/*
+      - twine upload dist/*
