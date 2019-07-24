@@ -12,11 +12,10 @@ from clokta.factors import Factors
 class RoleChooser(object):
     ''' Supports AWS Role determination '''
 
-    def __init__(self, saml_assertion, role_preference=None, verbose=False):
+    def __init__(self, saml_assertion, role_preference=None):
         ''' Instance constructor '''
         self.saml_assertion = saml_assertion
         self.role_preference = role_preference
-        self.verbose = verbose
 
     def choose_idp_role_tuple(self):
         ''' Determine the role options the user can choose from '''
@@ -27,8 +26,7 @@ class RoleChooser(object):
         if not idp_role_tuples:
             Common.dump_err(
                 message='No AWS Role was assigned to this application!',
-                exit_code=4,
-                verbose=self.verbose
+                exit_code=4
             )
 
         # use the one prvided if there is only one
@@ -40,7 +38,7 @@ class RoleChooser(object):
                         role=role_arn
                     )
                 )
-            else:
+            elif Common.is_debug():
                 Common.echo(
                     message='Using the configured role {role}'.format(
                         role=role_arn
@@ -89,7 +87,7 @@ class RoleChooser(object):
 
         raw_choice = None
         try:
-            raw_choice = click.prompt('Choose a Role ARN to use', type=int)
+            raw_choice = click.prompt(text='Choose a Role ARN to use', type=int, err=Common.to_std_error())
             choice = raw_choice - 1
         except ValueError:
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
@@ -102,8 +100,8 @@ class RoleChooser(object):
             return self.__choose_tuple(idp_role_tuples=idp_role_tuples)
 
         chosen_option = idp_role_tuples[choice]
-        if self.verbose:
-            Common.dump_verbose(
+        if Common.is_debug():
+            Common.dump_out(
                 message='Using chosen Role {role} & IDP {idp}'.format(
                     role=tup[2],
                     idp=tup[1]

@@ -21,15 +21,14 @@ from clokta.profile_manager import ProfileManager
 class RoleAssumer(object):
     ''' Core implementation of clokta '''
 
-    def __init__(self, profile, verbose=False):
+    def __init__(self, profile):
         ''' Constructor '''
         self.profile = profile
-        self.verbose = verbose
         self.data_dir = None
 
     def assume_role(self):
         ''' entry point for the cli tool '''
-        profile_mgr = ProfileManager(profile_name=self.profile, verbose=self.verbose)
+        profile_mgr = ProfileManager(profile_name=self.profile)
         configuration = profile_mgr.initialize_configuration()
         profile_mgr.update_configuration(profile_configuration=configuration)
 
@@ -49,8 +48,8 @@ class RoleAssumer(object):
             session_token = self.__okta_session_token(
                 configuration=configuration
             )
-            if self.verbose:
-                Common.dump_verbose(message='Okta session token: {}'.format(session_token))
+            if Common.is_debug():
+                Common.dump_out(message='Okta session token: {}'.format(session_token))
 
             saml_assertion = self.__saml_assertion_aws(
                 session_token=session_token,
@@ -59,8 +58,7 @@ class RoleAssumer(object):
 
         idp_and_role_chooser = RoleChooser(
             saml_assertion=saml_assertion,
-            role_preference=configuration.get('okta_aws_role_to_assume'),
-            verbose=self.verbose
+            role_preference=configuration.get('okta_aws_role_to_assume')
         )
         idp_role_tuple = idp_and_role_chooser.choose_idp_role_tuple()
 
@@ -86,11 +84,24 @@ class RoleAssumer(object):
         profile_mgr.apply_credentials(credentials=assumed_role_credentials, echo_message=True)
         bash_file = profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
         docker_file = profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
-        Common.echo(
-            message='AWS keys generated. To use, run "export AWS_PROFILE={prof}"\nor use files {file1} with docker compose or {file2} with shell scripts'.format(
-                prof=self.profile, file1=docker_file, file2=bash_file
+        self.output_instructions(docker_file=docker_file, bash_file=bash_file)
+
+    def output_instructions(self, docker_file, bash_file):
+        if Common.get_output_format()==Common.quiet_out:
+            Common.echo(
+                message='export AWS_PROFILE={}'.format(self.profile),
+                always_stdout=True
             )
-        )
+        elif Common.get_output_format()==Common.long_out:
+            Common.echo(
+                message='AWS keys generated. To use with docker compose include\n\t{}\n'.format(docker_file) +
+                        'To use with shell scripts source\n\t{}\n'.format(bash_file) +
+                        'to use in the current interactive shell run\n\texport AWS_PROFILE={}\n'.format(self.profile)
+            )
+        else:
+            Common.echo(
+                message='Run "clokta -i" for steps to use generated credentials or just run\n\texport AWS_PROFILE={}'.format(self.profile)
+            )
 
     def __okta_session_token(self, configuration):
         ''' Authenticate with Okta; receive a session token '''
@@ -99,19 +110,19 @@ class RoleAssumer(object):
         try:
             okta_response = self.__okta_auth_response(configuration=configuration)
         except requests.exceptions.HTTPError as http_err:
-            if self.verbose:
+            if Common.is_debug():
                 msg = 'Okta returned this credentials/password related error: {}\nThis could be a mistyped password or a misconfigured username or URL.'.format(http_err)
             else:
                 msg = "Failure.  Wrong password or misconfigured session."
-            Common.dump_err(message=msg, exit_code=1, verbose=self.verbose)
+            Common.dump_err(message=msg, exit_code=1)
         except Exception as err:
             msg = 'Unexpected error: {}'.format(err)
-            Common.dump_err(message=msg, exit_code=2, verbose=self.verbose)
+            Common.dump_err(message=msg, exit_code=2)
 
         # handle case where MFA is required but no factors have been enabled
         if okta_response['status'] == 'MFA_ENROLL':
             msg = 'Please enroll in multi-factor authentication before using this tool'
-            Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
+            Common.dump_err(message=msg, exit_code=3)
 
         otp_value = None
         if configuration.get('okta_onetimepassword_secret'):
@@ -119,7 +130,7 @@ class RoleAssumer(object):
                 import onetimepass as otp
             except ImportError:
                 msg = 'okta_onetimepassword_secret provided in config but "onetimepass" is not installed. run: pip install onetimepass'
-                Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
+                Common.dump_err(message=msg, exit_code=3)
             otp_value = otp.get_totp(configuration['okta_onetimepassword_secret'])
 
         if okta_response['status'] == 'MFA_REQUIRED':
@@ -133,7 +144,7 @@ class RoleAssumer(object):
                 )
             else:
                 msg = 'No MFA factors have been set up for this account'
-                Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
+                Common.dump_err(message=msg, exit_code=3)
 
         return okta_response['sessionToken']
 
@@ -159,7 +170,7 @@ class RoleAssumer(object):
             )
 
         if not otp_value:
-            otp_value = click.prompt('Enter your multifactor authentication token', type=str)
+            otp_value = click.prompt(text='Enter your multifactor authentication token', type=str, err=Common.to_std_error())
         try:
             mfa_response = self.__okta_mfa_verification(
                 factor_dict=factor,
@@ -169,10 +180,10 @@ class RoleAssumer(object):
             session_token = mfa_response['sessionToken']
         except requests.exceptions.HTTPError as http_err:
             msg = 'Okta returned this MFA related error: {}'.format(http_err)
-            Common.dump_err(message=msg, exit_code=1, verbose=self.verbose)
+            Common.dump_err(message=msg, exit_code=1)
         except Exception as err:
             msg = 'Unexpected error: {}'.format(err)
-            Common.dump_err(message=msg, exit_code=2, verbose=self.verbose)
+            Common.dump_err(message=msg, exit_code=2)
 
         return session_token
 
@@ -244,8 +255,7 @@ class RoleAssumer(object):
 
         fact_chooser = FactorChooser(
             factors=factors,
-            factor_preference=factor_preference,
-            verbose=self.verbose
+            factor_preference=factor_preference
         )
 
         # Is there only one legitimate MFA option available?
@@ -310,8 +320,8 @@ class RoleAssumer(object):
             configuration=configuration
         )
 
-        if self.verbose:
-            Common.dump_verbose(
+        if Common.is_debug():
+            Common.dump_out(
                 message='SAML response {} session token: {}'.format("with" if session_token else "without", response.content)
             )
 
@@ -322,12 +332,11 @@ class RoleAssumer(object):
                 assertion = inputtag.get('value')
         # If a session token is not passed in, we consider a failure as a normal possibility and just return None
         if not assertion and session_token:
-            if self.verbose:
-                Common.dump_verbose('Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.')
+            if Common.is_debug():
+                Common.dump_out('Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.')
             Common.dump_err(
                 message='Unexpected response from Okta.',
-                exit_code=4,
-                verbose=self.verbose
+                exit_code=4
             )
         return assertion
 

@@ -44,7 +44,7 @@ class ConfigGenerator(object):
     ]
 
     @classmethod
-    def generate_configuration(cls, config_section, verbose=False):
+    def generate_configuration(cls, config_section):
         configuration = {}
         for field in ConfigGenerator.config_fields:
             key = field['name']
@@ -58,14 +58,13 @@ class ConfigGenerator(object):
                 if is_secret:
                     Common.dump_err(
                         message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(key),
-                        exit_code=6,
-                        verbose=False)
+                        exit_code=6)
                 configuration[key] = config_section[key]
             elif 'required' in field and field['required']:
                     # We need it.  Prompt for it.
                     configuration[key] = ConfigGenerator.prompt_for(key)
 
-        if verbose:
+        if Common.is_debug():
             copy_config = copy.deepcopy(configuration)
             for key in copy_config:
                 if key.endswith('password'):
@@ -73,7 +72,7 @@ class ConfigGenerator(object):
             msg = 'Configuration: {}'.format(
                 json.dumps(obj=copy_config, indent=4)
             )
-            Common.dump_verbose(message=msg)
+            Common.dump_out(message=msg)
 
         return configuration
 
@@ -85,5 +84,8 @@ class ConfigGenerator(object):
         if 'secret' in field and field['secret']:
             field_value = getpass.getpass(prompt=prompt+":")
         else:
-            field_value = click.prompt(prompt, type=str, default=field['default_value'] if 'default_value' in field else None)
+            field_value = click.prompt(text=prompt,
+                                       type=str,
+                                       err=Common.to_std_error(),
+                                       default=field['default_value'] if 'default_value' in field else None)
         return field_value

@@ -23,12 +23,10 @@ class ProfileManager(object):
         self,
         profile_name,
         config_location='~/.clokta/clokta.cfg',
-        profiles_location='~/.aws/credentials',
-        verbose=False
+        profiles_location='~/.aws/credentials'
     ):
         ''' Instance constructor '''
         self.profile_name = profile_name
-        self.verbose = verbose
         self.profiles_location = os.path.expanduser(profiles_location)
         self.short_config_location = config_location
         self.config_location = os.path.expanduser(config_location)
@@ -45,7 +43,7 @@ class ProfileManager(object):
 
         if self.profile_name not in parser.sections():
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\nCopy the link from the Okta App'
-            app_url = click.prompt(msg.format(self.profile_name), type=str).strip()
+            app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
             if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
                 Common.dump_err("Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6, False)
             else:
@@ -56,8 +54,7 @@ class ProfileManager(object):
 
         config_section = parser[self.profile_name]
         updated_config = ConfigGenerator.generate_configuration(
-            config_section=config_section,
-            verbose=self.verbose
+            config_section=config_section
         )
         self.__write_config(
             path_to_file=self.config_location,
@@ -78,8 +75,8 @@ class ProfileManager(object):
         for key in profile_keys:
             parser[self.profile_name][key] = profile_configuration[key]
 
-        if self.verbose:
-            Common.dump_verbose(
+        if Common.is_debug():
+            Common.dump_out(
                 message='Re-writing configuration file {}'.format(self.config_location)
             )
         self.__write_config(
@@ -92,16 +89,16 @@ class ProfileManager(object):
 
     def apply_credentials(self, credentials, echo_message=False):
         ''' Save a set of temporary credentials '''
-        if self.verbose:
+        if Common.is_debug():
             msg = json.dumps(obj=credentials, default=Common.json_serial, indent=4)
-            Common.dump_verbose(message=msg)
+            Common.dump_out(message=msg)
 
         parser = configparser.ConfigParser()
         parser.read(self.profiles_location)
 
         if self.profile_name not in parser.sections():
-            if self.verbose:
-                Common.dump_verbose(
+            if Common.is_debug():
+                Common.dump_out(
                     message='Adding profile section {}'.format(self.profile_name)
                 )
             parser.add_section(self.profile_name)
@@ -116,8 +113,8 @@ class ProfileManager(object):
         if 'SessionToken' in creds:
             parser[self.profile_name]['AWS_SESSION_TOKEN'] = creds['SessionToken']
 
-        if self.verbose:
-            Common.dump_verbose(
+        if Common.is_debug():
+            Common.dump_out(
                 message='Re-writing credentials file {}'.format(self.profiles_location)
             )
 
@@ -160,7 +157,6 @@ class ProfileManager(object):
             profile=self.profile_name
         )
         lines = [
-            'export AWS_PROFILE={}\n'.format(self.profile_name),
             'export AWS_ACCESS_KEY_ID={}\n'.format(creds['AccessKeyId']),
             'export AWS_SECRET_ACCESS_KEY={}\n'.format(creds['SecretAccessKey'])
         ]
@@ -188,7 +184,6 @@ class ProfileManager(object):
             profile=self.profile_name
         )
         lines = [
-            'AWS_PROFILE={}\n'.format(self.profile_name),
             'AWS_ACCESS_KEY_ID={}\n'.format(creds['AccessKeyId']),
             'AWS_SECRET_ACCESS_KEY={}\n'.format(creds['SecretAccessKey'])
         ]
