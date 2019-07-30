@@ -1,4 +1,4 @@
-''' ConfigGenerator class must be instantiated prior to use '''
+""" ConfigGenerator class must be instantiated prior to use """
 import copy
 import getpass
 import json
@@ -10,34 +10,39 @@ from clokta.common import Common
 
 
 class ConfigGenerator(object):
-    ''' Loads or otherwise generates configuration information '''
+    """
+    Loads or otherwise generates configuration information
+    """
 
     config_fields = [
         {
             'name': 'okta_username',
             'required': True,
             'save_to': 'default'
-        },{
+        }, {
             'name': 'okta_org',
             'required': True,
             'save_to': 'default',
             'default_value': 'washpost.okta.com'
-        },{
+        }, {
             'name': 'multifactor_preference',
             'required': True,
             'save_to': 'default',
             'default_value': "Okta Verify with Push",
-            'prompt': 'Enter a preferred MFA - choose between Google Authenticator, SMS text message, Okta Verify, or Okta Verify with Push'
-        },{
+            'prompt': (
+                'Enter a preferred MFA - choose between Google Authenticator, SMS text message, '
+                'Okta Verify, or Okta Verify with Push'
+            )
+        }, {
             'name': 'okta_aws_app_url',
             'required': True,
             'save_to': 'profile'
-        },{
+        }, {
             'name': 'okta_password',
             'secret': True
-        },{
+        }, {
             'name': 'okta_aws_role_to_assume'
-        },{
+        }, {
             'name': 'okta_onetimepassword_secret',
             'secret': True
         }
@@ -45,6 +50,18 @@ class ConfigGenerator(object):
 
     @classmethod
     def generate_configuration(cls, config_section):
+        """
+        This creates a dictionary of all the necessary attributes for cloktaing into an account
+        For each attribute it will look first in the OS environment, then in the passed in
+        config file (which will look in both the section and in the DEFAULT section) and then
+        if still not found and the attribute is required, will prompt the user.
+        :param config_section: section of the clokta.cfg file that represents the profile that we will
+        login to though queries on this will also look in the DEFAULT section
+        :type config_section:
+        :return: a map of attributes that define the clokta login, e.g.
+            {"okta_username": "doej", "okta_org": "washpost.okta.com", ...}
+        :rtype: map[string, string]
+        """
         configuration = {}
         for field in ConfigGenerator.config_fields:
             key = field['name']

@@ -30,39 +30,41 @@ class ProfileManager(object):
         self.profiles_location = os.path.expanduser(profiles_location)
         self.short_config_location = config_location
         self.config_location = os.path.expanduser(config_location)
+        self.config_parameters = self.__initialize_configuration()
 
-    def initialize_configuration(self):
+    def __initialize_configuration(self):
         ''' Generate and load config file section '''
-        parser = configparser.ConfigParser()
-        parser.read(self.config_location)
+        clokta_cfg_file = configparser.ConfigParser()
+        clokta_cfg_file.read(self.config_location)
 
-        if not parser['DEFAULT']:
-            parser['DEFAULT'] = {
+        if not clokta_cfg_file['DEFAULT']:
+            clokta_cfg_file['DEFAULT'] = {
                 'okta_org': ''
             }
 
-        if self.profile_name not in parser.sections():
+        if self.profile_name not in clokta_cfg_file.sections():
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\nCopy the link from the Okta App'
             app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
             if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
                 Common.dump_err("Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6, False)
             else:
                 app_url = app_url[:-len("?fromHome=true")]
-            parser[self.profile_name] = {
+            clokta_cfg_file[self.profile_name] = {
                 'okta_aws_app_url': app_url
             }
 
-        config_section = parser[self.profile_name]
+        config_section = clokta_cfg_file[self.profile_name]
         updated_config = ConfigGenerator.generate_configuration(
             config_section=config_section
         )
         self.__write_config(
             path_to_file=self.config_location,
-            parser=parser
+            parser=clokta_cfg_file
         )
         return updated_config
 
-    def update_configuration(self, profile_configuration):
+    def update_configuration(self):
+        profile_configuration = self.config_parameters
         ''' Update a config file section '''
         parser = configparser.ConfigParser()
         parser.read(self.config_location)
