@@ -1,5 +1,6 @@
 import click  # TODO REMOVE
 from clokta.factor_chooser import FactorChooser  # TODO REMOVE
+from clokta.profile_manager import ProfileManager
 import json
 import pickle
 import requests
@@ -35,9 +36,15 @@ class OktaInitiator:
         self.saml_assertion = None
 
     def initiate_with_cookie(self, clokta_config):
+        """
+        Request a SAML Token from Okta without authenticating but relying on valid Okta cookie
+        from a previous interaction.  If succesful state will be SUCCESS and you can get
+        the SAML token.  If unsuccesful state will be FAIL
+        :param clokta_config: the configuration containing okta connection information
+        :type clokta_config: ProfileManager
+        """
         self.saml_assertion = self.__saml_assertion_aws(
-            session_token=None,
-            configuration=clokta_config.config_parameters  # TODO: Pass in whole config
+            configuration=clokta_config
         )
         self.state = OktaInitiator.State.SUCCESS if self.saml_assertion else OktaInitiator.State.FAIL
 
@@ -49,17 +56,22 @@ class OktaInitiator:
             Common.dump_out(message='Okta session token: {}'.format(session_token))
 
         self.saml_assertion = self.__saml_assertion_aws(
-            session_token=session_token,
-            configuration=clokta_config.config_parameters  # TODO: Pass in whole config
+            configuration=clokta_config,
+            session_token=session_token
         )
 
-    def __saml_assertion_aws(self, session_token, configuration):
+    def __saml_assertion_aws(self, configuration, session_token=None):
         """
         fetch saml 2.0 assertion
+        :param configuration: the clokta configuration
+        :type configuration: ProfileManager
+        :param session_token: a token returned by authenticating with okta.
+            if None request will only work if there is a valid cookie
+        :type session_token: str
         """
         response = self.__okta_app_response(
             session_token=session_token,
-            configuration=configuration
+            configuration=configuration.getParameters()
         )
 
         if Common.is_debug():

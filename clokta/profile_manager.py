@@ -1,4 +1,3 @@
-''' ProfileManager class must be instantiated prior to use. '''
 import click
 import configparser
 import enum
@@ -10,14 +9,14 @@ from clokta.config_generator import ConfigGenerator
 
 
 class OutputFormat(enum.Enum):
-    ''' Enumeration for credentials output format codes '''
+    """ Enumeration for credentials output format codes """
     ShellScript = 'SHELL'
     Profile = 'PROFILE'
     All = 'ALL'
 
 
 class ProfileManager(object):
-    ''' Supports profile file management '''
+    """ Supports profile file management """
 
     def __init__(
         self,
@@ -25,15 +24,35 @@ class ProfileManager(object):
         config_location='~/.clokta/clokta.cfg',
         profiles_location='~/.aws/credentials'
     ):
-        ''' Instance constructor '''
+        """ Instance constructor """
         self.profile_name = profile_name
         self.profiles_location = os.path.expanduser(profiles_location)
         self.short_config_location = config_location
         self.config_location = os.path.expanduser(config_location)
         self.config_parameters = self.__initialize_configuration()
 
+    def get(self, parameter_name):
+        """
+        Get the current value of a configuration parameter
+        :param parameter_name: the name of the parameter
+        :type parameter_name: str
+        :return: the value of the parameter or None if not present
+        """
+        return self.config_parameters.get(parameter_name)
+
+    def getParameters(self):
+        """
+        :return: all the parameters
+        :rtype: dict[str, str]
+        """
+        return self.config_parameters
+
     def __initialize_configuration(self):
-        ''' Generate and load config file section '''
+        """
+        Generate and load config file section
+        :return: the parameter list
+        :rtype: dict
+        """
         clokta_cfg_file = configparser.ConfigParser()
         clokta_cfg_file.read(self.config_location)
 
@@ -43,10 +62,13 @@ class ProfileManager(object):
             }
 
         if self.profile_name not in clokta_cfg_file.sections():
-            msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\nCopy the link from the Okta App'
+            msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\n' + \
+                'Copy the link from the Okta App'
             app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
             if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
-                Common.dump_err("Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6, False)
+                Common.dump_err(
+                    "Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6
+                )
             else:
                 app_url = app_url[:-len("?fromHome=true")]
             clokta_cfg_file[self.profile_name] = {
@@ -69,11 +91,13 @@ class ProfileManager(object):
         parser = configparser.ConfigParser()
         parser.read(self.config_location)
 
-        default_keys = [field['name'] for field in ConfigGenerator.config_fields if 'save_to' in field and field['save_to']=='default']
+        default_keys = [field['name'] for field in ConfigGenerator.config_fields
+                        if 'save_to' in field and field['save_to'] == 'default']
         for key in default_keys:
             parser['DEFAULT'][key] = profile_configuration.get(key)
 
-        profile_keys = [field['name'] for field in ConfigGenerator.config_fields if 'save_to' in field and field['save_to']=='profile']
+        profile_keys = [field['name'] for field in ConfigGenerator.config_fields
+                        if 'save_to' in field and field['save_to'] == 'profile']
         for key in profile_keys:
             parser[self.profile_name][key] = profile_configuration[key]
 
@@ -89,8 +113,8 @@ class ProfileManager(object):
     def prompt_for(self, field_name):
         return ConfigGenerator.prompt_for(field_name)
 
-    def apply_credentials(self, credentials, echo_message=False):
-        ''' Save a set of temporary credentials '''
+    def apply_credentials(self, credentials):
+        """ Save a set of temporary credentials """
         if Common.is_debug():
             msg = json.dumps(obj=credentials, default=Common.json_serial, indent=4)
             Common.dump_out(message=msg)
@@ -126,7 +150,7 @@ class ProfileManager(object):
         )
 
     def __write_config(self, path_to_file, parser):
-        ''' Write config to file '''
+        """ Write config to file """
         self.__backup_file(path_to_file=path_to_file)
 
         if not os.path.exists(os.path.dirname(path_to_file)):
@@ -136,7 +160,7 @@ class ProfileManager(object):
             parser.write(file)
 
     def __backup_file(self, path_to_file):
-        ''' Back up config '''
+        """ Back up config """
         backup_location = os.path.expanduser(
             '{}.bak'.format(
                 path_to_file
@@ -150,9 +174,9 @@ class ProfileManager(object):
                 bak_file.write(contents)
 
     def write_sourceable_file(self, credentials):
-        '''
+        """
         Generates a shell script to source in order to apply credentials to the shell environment.
-        '''
+        """
         creds = credentials['Credentials']
         output_file_name = '{dir}/{profile}.sh'.format(
             dir=os.path.dirname(self.config_location),
@@ -177,9 +201,9 @@ class ProfileManager(object):
         return short_output_file_name
 
     def write_dockerenv_file(self, credentials):
-        '''
+        """
         Generates a Docker .env file that can be used with docker compose to inject into the environment.
-        '''
+        """
         creds = credentials['Credentials']
         output_file_name = '{dir}/{profile}.env'.format(
             dir=os.path.dirname(self.config_location),

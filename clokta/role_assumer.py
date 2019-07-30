@@ -41,7 +41,7 @@ class RoleAssumer(object):
         #
         #
         #
-        configuration = profile_mgr.config_parameters
+        configuration = profile_mgr.getParameters()
         #
         #
 
@@ -78,7 +78,7 @@ class RoleAssumer(object):
                 if e.response['Error']['Code'] != 'ValidationError' or duration == durations[-1]:
                     raise
 
-        profile_mgr.apply_credentials(credentials=assumed_role_credentials, echo_message=True)
+        profile_mgr.apply_credentials(credentials=assumed_role_credentials)
         bash_file = profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
         docker_file = profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
         self.output_instructions(docker_file=docker_file, bash_file=bash_file)
