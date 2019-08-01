@@ -1,16 +1,11 @@
 """"
 Code-behind the scenes for the cli application.
 """
-import os
 
-import boto3
-from botocore.exceptions import ClientError
-
+from clokta.aws_cred_generator import AwsCredentialsGenerator
 from clokta.common import Common
-from clokta.factor_chooser import FactorChooser
 from clokta.okta_initiator import OktaInitiator
-from clokta.role_chooser import RoleChooser
-from clokta.profile_manager import ProfileManager
+from clokta.clokta_configuration import CloktaConfiguration
 
 
 class RoleAssumer(object):
@@ -23,73 +18,53 @@ class RoleAssumer(object):
         """
         self.profile = profile
         """folder to store files in"""
-        self.data_dir = None
+        self.data_dir = "~/.clokta/"
 
     def assume_role(self):
         """ entry point for the cli tool """
-        profile_mgr = ProfileManager(profile_name=self.profile)
-        profile_mgr.update_configuration()
-
-        # Need a directory to store intermediate files.  Use the same directory that clokta configuration
-        # is kept in
-        self.data_dir = os.path.dirname(profile_mgr.config_location)
+        clokta_config_file = self.data_dir + "clokta.cfg"
+        clokta_config = CloktaConfiguration(profile_name=self.profile, clokta_config_file=clokta_config_file)
+        clokta_config.update_configuration()
 
         # Attempt to initiate a connection using just cookies
-        okta_initiator = OktaInitiator(self.data_dir)
-        okta_initiator.initiate_with_cookie(profile_mgr)
-
-        #
-        #
-        #
-        configuration = profile_mgr.getParameters()
-        #
-        #
+        okta_initiator = OktaInitiator(data_dir=self.data_dir)
+        okta_initiator.initiate_with_cookie(clokta_config)
 
         if okta_initiator.state == OktaInitiator.State.FAIL:
-            if 'okta_password' not in configuration or not configuration['okta_password']:
-                configuration['okta_password'] = profile_mgr.prompt_for('okta_password')
+            # Cookie didn't work.  Prompt for the password and try authenticating with Okta
+            clokta_config.determine_password()
+            mfas = okta_initiator.initiate_with_auth(clokta_config)
 
-            okta_initiator.initiate_with_auth(profile_mgr)
+            if okta_initiator.get_state() == OktaInitiator.State.NEED_MFA:
+                chosen_factor = clokta_config.determine_mfa_mechanism(mfas)
+                need_otp = okta_initiator.initiate_mfa(factor=chosen_factor)
+                if need_otp:
+                    clokta_config.determine_okta_onetimepassword()
+                okta_initiator.finalize_mfa(clokta_config, chosen_factor)
+
+        if okta_initiator.state == OktaInitiator.State.FAIL:
+            msg = 'Failed to authenticate with Okta'
+            Common.dump_err(message=msg, exit_code=10)
 
         saml_assertion = okta_initiator.saml_assertion
 
-        idp_and_role_chooser = RoleChooser(
-            saml_assertion=saml_assertion,
-            role_preference=configuration.get('okta_aws_role_to_assume')
-        )
-        idp_role_tuple = idp_and_role_chooser.choose_idp_role_tuple()
+        # We now have a SAML assertion and can generate a AWS Credentials
+        aws_svc = AwsCredentialsGenerator(clokta_config=clokta_config,
+                                          saml_assertion=saml_assertion,
+                                          data_dir=self.data_dir)
+        roles = aws_svc.get_roles()
+        role = clokta_config.determine_role(roles)
+        aws_svc.generate_creds(role)
 
-        client = boto3.client('sts')
-        # Try for a 12 hour session.  If it fails, try for shorter periods
-        durations = [43200, 14400, 3600]
-        for duration in durations:
-            try:
-                assumed_role_credentials = client.assume_role_with_saml(
-                    RoleArn=idp_role_tuple[2],
-                    PrincipalArn=idp_role_tuple[1],
-                    SAMLAssertion=saml_assertion,
-                    DurationSeconds=duration
-                )
-                if duration == 3600:
-                    Common.echo(message='YOUR SESSION WILL ONLY LAST ONE HOUR')
-                break
-            except ClientError as e:
-                # If we get a validation error and we have shorter durations to try, try a shorter duration
-                if e.response['Error']['Code'] != 'ValidationError' or duration == durations[-1]:
-                    raise
-
-        profile_mgr.apply_credentials(credentials=assumed_role_credentials)
-        bash_file = profile_mgr.write_sourceable_file(credentials=assumed_role_credentials)
-        docker_file = profile_mgr.write_dockerenv_file(credentials=assumed_role_credentials)
-        self.output_instructions(docker_file=docker_file, bash_file=bash_file)
+        self.output_instructions(docker_file=aws_svc.docker_file, bash_file=aws_svc.bash_file)
 
     def output_instructions(self, docker_file, bash_file):
-        if Common.get_output_format()==Common.quiet_out:
+        if Common.get_output_format() == Common.quiet_out:
             Common.echo(
                 message='export AWS_PROFILE={}'.format(self.profile),
                 always_stdout=True
             )
-        elif Common.get_output_format()==Common.long_out:
+        elif Common.get_output_format() == Common.long_out:
             Common.echo(
                 message='AWS keys generated. To use with docker compose include\n\t{}\n'.format(docker_file) +
                         'To use with shell scripts source\n\t{}\n'.format(bash_file) +
@@ -97,7 +72,6 @@ class RoleAssumer(object):
             )
         else:
             Common.echo(
-                message='Run "clokta -i" for steps to use generated credentials or just run\n\texport AWS_PROFILE={}'.format(self.profile)
+                message='Run "clokta -i" for steps to use generated credentials or just run\n' +
+                        '\texport AWS_PROFILE={}'.format(self.profile)
             )
-
-

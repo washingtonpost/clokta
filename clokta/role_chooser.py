@@ -1,86 +1,70 @@
 
 ''' RoleChooser class must be instantiated prior to use '''
-import base64
-import xml.etree.ElementTree as ET
 
 import click
 
+from clokta.awsrole import AwsRole
 from clokta.common import Common
-from clokta.factors import Factors
 
 
 class RoleChooser(object):
-    ''' Supports AWS Role determination '''
+    """
+    Supports AWS Role determination
+    """
 
-    def __init__(self, saml_assertion, role_preference=None):
-        ''' Instance constructor '''
-        self.saml_assertion = saml_assertion
+    def __init__(self, possible_roles, role_preference=None):
+        """
+        :param possible_roles: list of possible roles to choose from
+        :type possible_roles: List[AwsRole]
+        :param role_preference: preferred role
+        :type role_preference: str
+        """
+        self.possible_roles = possible_roles
         self.role_preference = role_preference
 
-    def choose_idp_role_tuple(self):
-        ''' Determine the role options the user can choose from '''
-        idp_role_tuples = self.__discover_role_idp_tuples()
-
+    def choose_role(self):
         # throw an error if no roles are provided
         #  (defensive coding only - this should not be impossible)
-        if not idp_role_tuples:
+        if not self.possible_roles:
             Common.dump_err(
                 message='No AWS Role was assigned to this application!',
                 exit_code=4
             )
 
-        # use the one prvided if there is only one
-        if len(idp_role_tuples) == 1:
-            role_arn = idp_role_tuples[0][2]
-            if self.role_preference and role_arn != self.role_preference:
+        # use the one provided if there is only one
+        if len(self.possible_roles) == 1:
+            role = self.possible_roles[0]
+            if self.role_preference and role.role_arn != self.role_preference:
                 Common.echo(
-                    message='Your cofigured role was not found; using {role}'.format(
-                        role=role_arn
+                    message='Your cofigured role was not found; using {role} role'.format(
+                        role=role.role_name
                     )
                 )
             elif Common.is_debug():
                 Common.echo(
-                    message='Using the configured role {role}'.format(
-                        role=role_arn
+                    message='Using the configured role {role} role'.format(
+                        role=role.role_arn
                     )
                 )
-            return idp_role_tuples[0]
+            return role
 
         # use the configured role if it matches one from the the SAML assertion
-        for tup in idp_role_tuples:
-            if tup[2] == self.role_preference:
-                return tup
+        for role in self.possible_roles:
+            if role.role_arn == self.role_preference:
+                return role
 
         # make the user choose
-        return self.__choose_tuple(idp_role_tuples=idp_role_tuples)
+        return self.__prompt_for_role()
 
-    def __discover_role_idp_tuples(self):
-        ''' Generate tuples from each possible IDP/Role combination in the SAML assertion '''
-        idp_role_pairs = []
-        decoded_assertion = base64.b64decode(self.saml_assertion)
-        root = ET.fromstring(decoded_assertion)
-        for saml2_attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribute'):
-            if saml2_attribute.get('Name') == 'https://aws.amazon.com/SAML/Attributes/Role':
-                for saml2_attribute_value in saml2_attribute.iter('{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue'):
-                    idp_role_pairs.append(saml2_attribute_value.text)
-
-        idp_role_tuples = []
-        for index, pair in enumerate(idp_role_pairs):
-            idp_role = pair.split(',')
-            tup = (index + 1), idp_role[0], idp_role[1]
-            idp_role_tuples.append(tup)
-
-        return idp_role_tuples
-
-    def __choose_tuple(self, idp_role_tuples):
-        ''' Give the user a choice from the intersection of configured and supported factors '''
+    def __prompt_for_role(self):
+        """
+        Give the user a choice from the intersection of configured and supported factors
+        """
         index = 1
-        for tup in idp_role_tuples:
-            slashIndex = tup[2].find('/')
-            shortName = tup[2][slashIndex+1:] if slashIndex >= 0 else tup[2]
+        for role in self.possible_roles:
             msg = '{index} - {prompt}'.format(
-                index=tup[0],
-                prompt=shortName
+                index=index,
+                prompt=role.role_name
             )
             Common.echo(message=msg, bold=True)
             index += 1
@@ -91,20 +75,20 @@ class RoleChooser(object):
             choice = raw_choice - 1
         except ValueError:
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
-            return self.__choose_tuple(idp_role_tuples=idp_role_tuples)
+            return self.__prompt_for_role()
 
-        if len(idp_role_tuples) > choice >= 0:
+        if len(self.possible_roles) > choice >= 0:
             pass
         else:
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
-            return self.__choose_tuple(idp_role_tuples=idp_role_tuples)
+            return self.__prompt_for_role()
 
-        chosen_option = idp_role_tuples[choice]
+        chosen_option = self.possible_roles[choice]
         if Common.is_debug():
             Common.dump_out(
                 message='Using chosen Role {role} & IDP {idp}'.format(
-                    role=tup[2],
-                    idp=tup[1]
+                    role=chosen_option.role_arn,
+                    idp=chosen_option.idp_arn
                 )
             )
 

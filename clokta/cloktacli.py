@@ -23,7 +23,7 @@ def configure_output_format(verbose, instructions, quiet):
     Reads the three output-related command line flags and determines desired output 
     '''
     if verbose:
-        Common.set_output_format(Common.verbose_out)
+        Common.set_output_format(Common.debugging_out)
     elif quiet:
         Common.set_output_format(Common.quiet_out)
     elif instructions:

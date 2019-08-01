@@ -6,6 +6,8 @@ import os
 
 from clokta.common import Common
 from clokta.config_generator import ConfigGenerator
+from clokta.factor_chooser import FactorChooser
+from clokta.role_chooser import RoleChooser
 
 
 class OutputFormat(enum.Enum):
@@ -15,20 +17,23 @@ class OutputFormat(enum.Enum):
     All = 'ALL'
 
 
-class ProfileManager(object):
-    """ Supports profile file management """
+class CloktaConfiguration(object):
+    """
+    This handles collecting and storing the configuration paramaters needed to clokta into a system
+    It encapsulates reading and storing values from the clokta.cfg file, reading and storing passwords from
+    keyring, and prompting the user for values.
+    """
 
     def __init__(
         self,
         profile_name,
-        config_location='~/.clokta/clokta.cfg',
+        clokta_config_file,
         profiles_location='~/.aws/credentials'
     ):
         """ Instance constructor """
         self.profile_name = profile_name
         self.profiles_location = os.path.expanduser(profiles_location)
-        self.short_config_location = config_location
-        self.config_location = os.path.expanduser(config_location)
+        self.clokta_config_file = os.path.expanduser(clokta_config_file)
         self.config_parameters = self.__initialize_configuration()
 
     def get(self, parameter_name):
@@ -40,7 +45,7 @@ class ProfileManager(object):
         """
         return self.config_parameters.get(parameter_name)
 
-    def getParameters(self):
+    def get_parameters(self):
         """
         :return: all the parameters
         :rtype: dict[str, str]
@@ -54,7 +59,7 @@ class ProfileManager(object):
         :rtype: dict
         """
         clokta_cfg_file = configparser.ConfigParser()
-        clokta_cfg_file.read(self.config_location)
+        clokta_cfg_file.read(self.clokta_config_file)
 
         if not clokta_cfg_file['DEFAULT']:
             clokta_cfg_file['DEFAULT'] = {
@@ -80,7 +85,7 @@ class ProfileManager(object):
             config_section=config_section
         )
         self.__write_config(
-            path_to_file=self.config_location,
+            path_to_file=self.clokta_config_file,
             parser=clokta_cfg_file
         )
         return updated_config
@@ -89,7 +94,7 @@ class ProfileManager(object):
         profile_configuration = self.config_parameters
         ''' Update a config file section '''
         parser = configparser.ConfigParser()
-        parser.read(self.config_location)
+        parser.read(self.clokta_config_file)
 
         default_keys = [field['name'] for field in ConfigGenerator.config_fields
                         if 'save_to' in field and field['save_to'] == 'default']
@@ -103,10 +108,10 @@ class ProfileManager(object):
 
         if Common.is_debug():
             Common.dump_out(
-                message='Re-writing configuration file {}'.format(self.config_location)
+                message='Re-writing configuration file {}'.format(self.clokta_config_file)
             )
         self.__write_config(
-            path_to_file=self.config_location,
+            path_to_file=self.clokta_config_file,
             parser=parser
         )
 
@@ -173,54 +178,81 @@ class ProfileManager(object):
             with open(backup_location, 'w') as bak_file:
                 bak_file.write(contents)
 
-    def write_sourceable_file(self, credentials):
+    def determine_mfa_mechanism(self, mfas):
         """
-        Generates a shell script to source in order to apply credentials to the shell environment.
+        Determine which of the passed in MFA mechanisms to use.  This may be specified
+        by the configuration's 'multifactor_preference' if not prompt the user and put
+        in the configuration
+        :param mfas: possible mechanisms to use for MFA
+        :type mfas: List[dict]
+        :return: the chosen MFA mechanism to use
+        :rtype: dict
         """
-        creds = credentials['Credentials']
-        output_file_name = '{dir}/{profile}.sh'.format(
-            dir=os.path.dirname(self.config_location),
-            profile=self.profile_name
+
+        factor_preference = self.get('multifactor_preference')
+        fact_chooser = FactorChooser(
+            factors=mfas,
+            factor_preference=factor_preference
         )
-        lines = [
-            'export AWS_ACCESS_KEY_ID={}\n'.format(creds['AccessKeyId']),
-            'export AWS_SECRET_ACCESS_KEY={}\n'.format(creds['SecretAccessKey'])
-        ]
-        if 'SessionToken' in creds:
-            lines.append('export AWS_SESSION_TOKEN={}\n'.format(creds['SessionToken']))
-        else:
-            lines.append('unset AWS_SESSION_TOKEN')
 
-        with open(output_file_name, mode='w') as file_handle:
-            file_handle.writelines(lines)
+        # Is there only one legitimate MFA option available?
+        if len(mfas) == 1:
+            factor = fact_chooser.verify_only_factor(factor=mfas[0])
+            if factor:
+                return factor
 
-        short_output_file_name = '{dir}/{profile}.sh'.format(
-            dir=os.path.dirname(self.short_config_location),
-            profile=self.profile_name
-        )
-        return short_output_file_name
+        # Has the user pre-selected a legitimate factor?
+        if factor_preference:
+            factor = fact_chooser.verify_preferred_factor()
+            if factor:
+                return factor
 
-    def write_dockerenv_file(self, credentials):
+        return fact_chooser.choose_supported_factor()
+
+    def determine_role(self, possible_roles):
         """
-        Generates a Docker .env file that can be used with docker compose to inject into the environment.
+        Determine which of several possible roles to assume by looking first in the config for a default role,
+        and second by prompting the user.
+        :param possible_roles: list of possible roles to assume
+        :type possible_roles: str
+        :return: the role chosen
+        :rtype: AwsRole
         """
-        creds = credentials['Credentials']
-        output_file_name = '{dir}/{profile}.env'.format(
-            dir=os.path.dirname(self.config_location),
-            profile=self.profile_name
+        role_chooser = RoleChooser(
+            possible_roles=possible_roles,
+            role_preference=self.get('okta_aws_role_to_assume')
         )
-        lines = [
-            'AWS_ACCESS_KEY_ID={}\n'.format(creds['AccessKeyId']),
-            'AWS_SECRET_ACCESS_KEY={}\n'.format(creds['SecretAccessKey'])
-        ]
-        if 'SessionToken' in creds:
-            lines.append('AWS_SESSION_TOKEN={}\n'.format(creds['SessionToken']))
+        chosen_role = role_chooser.choose_role()
+        self.config_parameters['okta_aws_role_to_assume'] = chosen_role.role_arn
+        return chosen_role
 
-        with open(output_file_name, mode='w') as file_handle:
-            file_handle.writelines(lines)
+    def determine_password(self):
+        if 'okta_password' not in self.config_parameters or not self.config_parameters['okta_password']:
+            self.config_parameters['okta_password'] = self.prompt_for('okta_password')
 
-        short_output_file_name = '{dir}/{profile}.env'.format(
-            dir=os.path.dirname(self.short_config_location),
-            profile=self.profile_name
-        )
-        return short_output_file_name
+
+    def determine_okta_onetimepassword(self):
+        """
+        Get the one time password, which may be in one password or
+        may need to be prompted for
+        """
+
+        otp_value = None
+        if self.get('okta_onetimepassword_secret'):
+            try:
+                # noinspection PyUnresolvedReferences
+                import onetimepass as otp
+            except ImportError:
+                msg = 'okta_onetimepassword_secret provided in config but "onetimepass" is not installed. ' + \
+                      'run: pip install onetimepass'
+                Common.dump_err(message=msg, exit_code=3)
+            otp_value = otp.get_totp(self.get('okta_onetimepassword_secret'))
+
+        if not otp_value:
+            otp_value = click.prompt(
+                text='Enter your multifactor authentication token',
+                type=str,
+                err=Common.to_std_error()
+            )
+
+        self.config_parameters['okta_onetimepassword'] = otp_value
