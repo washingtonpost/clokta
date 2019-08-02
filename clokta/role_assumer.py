@@ -37,10 +37,10 @@ class RoleAssumer(object):
 
             if okta_initiator.get_state() == OktaInitiator.State.NEED_MFA:
                 chosen_factor = clokta_config.determine_mfa_mechanism(mfas)
-                need_otp = okta_initiator.initiate_mfa(factor=chosen_factor)
+                need_otp = okta_initiator.initiate_mfa(clokta_config=clokta_config, factor=chosen_factor)
                 if need_otp:
-                    clokta_config.determine_okta_onetimepassword()
-                okta_initiator.finalize_mfa(clokta_config, chosen_factor)
+                    otp = clokta_config.determine_okta_onetimepassword()
+                    okta_initiator.finalize_mfa(clokta_config=clokta_config, factor=chosen_factor, otp=otp)
 
         if okta_initiator.state == OktaInitiator.State.FAIL:
             msg = 'Failed to authenticate with Okta'

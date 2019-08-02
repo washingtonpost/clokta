@@ -66,10 +66,7 @@ class OktaInitiator:
         """
         self.saml_assertion = None
         self.state = OktaInitiator.State.FAIL  # Set to fail at start so exception leaves in fail state
-        self.saml_assertion = self.__request_saml_assertion(
-            configuration=clokta_config
-        )
-        self.state = OktaInitiator.State.SUCCESS if self.saml_assertion else OktaInitiator.State.FAIL
+        self.__request_saml_assertion(configuration=clokta_config)
 
     def initiate_with_auth(self, clokta_config):
         """
@@ -83,32 +80,31 @@ class OktaInitiator:
         self.saml_assertion = None
         self.state = OktaInitiator.State.FAIL  # Set to fail at start so exception leaves in fail state
         self.__auth_with_okta(
-            configuration=clokta_config.config_parameters  # TODO: Pass in whole config
+            configuration=clokta_config
         )
 
         # If no MFA was needed, then we've authed and can request SAML token
         if self.session_token:
-            self.saml_assertion = self.__request_saml_assertion(
-                configuration=clokta_config,
-                session_token=self.session_token
-            )
-            self.state = OktaInitiator.State.SUCCESS if self.saml_assertion else OktaInitiator.State.FAIL
+            self.__request_saml_assertion(configuration=clokta_config, session_token=self.session_token)
             return []
         else:
             self.state = OktaInitiator.State.NEED_MFA
             return self.factors
 
-    def initiate_mfa(self, factor):
+    def initiate_mfa(self, clokta_config, factor):
         """
         Next step after initiate_with_auth in the multistep process of getting a SAML token from Okta.
         Some MFA mechanism, like SMS, need to perform an action before prompting the user for response.
         After this state will still be NEED_MFA and you need to call finalize_mfa
+        :param clokta_config: clokta configuration with mfa response
+        :type clokta_config: CloktaConfiguration
         :param factor: the MFA mechanism to use
         :type factor: dict
         :return: whether a one time password will be needed to complete MFA
         :rtype: bool
         """
 
+        need_otp = True
         if factor['factorType'] == 'sms':
             self.__okta_mfa_verification(
                 factor_dict=factor,
@@ -116,10 +112,18 @@ class OktaInitiator:
                 otp_value=None
             )
 
-        need_otp = factor['factorType'] != 'push'
+        if factor['factorType'] == 'push':
+            need_otp = False
+            session_token = self.__do_mfa_with_push(
+                factor=factor,
+                state_token=self.intermediate_state_token
+            )
+            # Now that we have a session token, request the SAML token
+            self.__request_saml_assertion(configuration=clokta_config, session_token=session_token)
+
         return need_otp
 
-    def finalize_mfa(self, clokta_config, factor):
+    def finalize_mfa(self, clokta_config, factor, otp):
         """
         Final step in multistep process of getting a SAML token from Okta.
         Submit MFA response to Okta
@@ -127,20 +131,17 @@ class OktaInitiator:
         :type clokta_config: CloktaConfiguration
         :param factor: the MFA mechanism to use
         :type factor: dict
+        :param otp: the one time password for MFA
+        :type otp: str
         """
 
-        session_token = self.__submit_mfa_response(clokta_config, factor)
+        session_token = self.__submit_mfa_response(factor=factor, otp=otp)
 
         if Common.is_debug():
             Common.dump_out(message='Okta session token: {}'.format(session_token))
 
         # Now that we have a session token, request the SAML token
-
-        self.saml_assertion = self.__request_saml_assertion(
-            configuration=clokta_config,
-            session_token=session_token
-        )
-        self.state = OktaInitiator.State.SUCCESS if self.saml_assertion else OktaInitiator.State.FAIL
+        self.__request_saml_assertion(configuration=clokta_config, session_token=session_token)
 
     def __request_saml_assertion(self, configuration, session_token=None):
         """
@@ -151,9 +152,10 @@ class OktaInitiator:
             if None request will only work if there is a valid cookie
         :type session_token: str
         """
+        self.saml_assertion = None
         response = self.__post_saml_request(
             session_token=session_token,
-            configuration=configuration.get_parameters()  # TODO Pass in whole config
+            configuration=configuration
         )
 
         if Common.is_debug():
@@ -164,12 +166,11 @@ class OktaInitiator:
             )
 
         soup = BeautifulSoup(response.content, "html.parser")
-        assertion = None
         for inputtag in soup.find_all('input'):
             if inputtag.get('name') == 'SAMLResponse':
-                assertion = inputtag.get('value')
+                self.saml_assertion = inputtag.get('value')
         # If a session token is not passed in, we consider a failure as a normal possibility and just return None
-        if not assertion and session_token:
+        if not self.saml_assertion and session_token:
             if Common.is_debug():
                 Common.dump_out(
                     'Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.'
@@ -178,11 +179,21 @@ class OktaInitiator:
                 message='Unexpected response from Okta.',
                 exit_code=4
             )
-        return assertion
+
+        self.state = OktaInitiator.State.SUCCESS if self.saml_assertion else OktaInitiator.State.FAIL
 
     def __post_saml_request(self, session_token, configuration):
+        """
+        Send request to SAML token to Okta
+        :param session_token: the session token gotten from authenticating with Okta
+        :type session_token: str
+        :param configuration: the clokta configuration with 'okta_aws_app_url'
+        :type configuration: CloktaConfiguration
+        :return: the HTTP response
+        :rtype: json str
+        """
         cookie_file = self.data_dir + 'clokta.cookies'
-        url = configuration['okta_aws_app_url']
+        url = configuration.get('okta_aws_app_url')
         if session_token:
             url += '?onetimetoken=' + session_token
         try:
@@ -273,7 +284,7 @@ class OktaInitiator:
         else:
             response.raise_for_status()
 
-    def __check_push_result(self, state_token, push_response):
+    def __wait_for_push_result(self, state_token, push_response):
         """Wait for push response acknowledgement"""
         url = push_response['_links']['next']['href']
         headers = {
@@ -327,19 +338,20 @@ class OktaInitiator:
         else:
             response.raise_for_status()
 
-    def __submit_mfa_response(self, clokta_config, factor):
-        if factor['factorType'] == 'push':
-            return self.__send_push(
-                factor=factor,
-                state_token=self.intermediate_state_token
-            )
-
+    def __submit_mfa_response(self, factor, otp):
+        """
+        post one time password to Okta
+        :param factor: the MFA mechanism to use
+        :type factor: dict
+        :param otp: the one time password for MFA
+        :type otp: str
+        """
         session_token = None
         try:
             mfa_response = self.__okta_mfa_verification(
                 factor_dict=factor,
                 state_token=self.intermediate_state_token,
-                otp_value=clokta_config.get('onetimepassword')
+                otp_value=otp
             )
             session_token = mfa_response['sessionToken']
         except requests.exceptions.HTTPError as http_err:
@@ -351,8 +363,16 @@ class OktaInitiator:
 
         return session_token
 
-    def __send_push(self, factor, state_token):
-        """Send push re: Okta Verify"""
+    def __do_mfa_with_push(self, factor, state_token):
+        """
+        Send push re: Okta Verify
+        :param factor: mfa information
+        :type factor: dict
+        :param state_token: token used in MFA back and forth
+        :type: str
+        :return: the session token
+        :rtype: str
+        """
         url = factor['_links']['verify']['href']
         headers = {
             'Accept': 'application/json',
@@ -375,7 +395,7 @@ class OktaInitiator:
         status = response_data['status']
         if status == 'MFA_CHALLENGE':
             if 'factorResult' in response_data and response_data['factorResult'] == 'WAITING':
-                return self.__check_push_result(
+                return self.__wait_for_push_result(
                     state_token=state_token,
                     push_response=response_data
                 )

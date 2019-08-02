@@ -1,3 +1,5 @@
+import getpass
+
 import click
 import configparser
 import enum
@@ -5,7 +7,7 @@ import json
 import os
 
 from clokta.common import Common
-from clokta.config_generator import ConfigGenerator
+from clokta.config_parameter import ConfigParameter
 from clokta.factor_chooser import FactorChooser
 from clokta.role_chooser import RoleChooser
 
@@ -34,7 +36,9 @@ class CloktaConfiguration(object):
         self.profile_name = profile_name
         self.profiles_location = os.path.expanduser(profiles_location)
         self.clokta_config_file = os.path.expanduser(clokta_config_file)
-        self.config_parameters = self.__initialize_configuration()
+        self.param_list = self.__define_parameters()  # type: [ConfigParameter]
+        self.parameters = {p.name: p for p in self.param_list}
+        self.__initialize_configuration()
 
     def get(self, parameter_name):
         """
@@ -43,32 +47,97 @@ class CloktaConfiguration(object):
         :type parameter_name: str
         :return: the value of the parameter or None if not present
         """
-        return self.config_parameters.get(parameter_name)
+        return self.parameters[parameter_name].value if parameter_name in self.parameters else None
 
-    def get_parameters(self):
+    def update_configuration(self):
         """
-        :return: all the parameters
-        :rtype: dict[str, str]
+        Write the current version of the configuration to the clokta.cfg file
         """
-        return self.config_parameters
+        parser = configparser.ConfigParser()
+        parser.read(self.clokta_config_file)
+
+        for param in self.param_list:
+            if param.value:
+                if param.save_to == ConfigParameter.SaveTo.DEFAULT:
+                    parser['DEFAULT'][param.name] = param.value
+                elif param.save_to == ConfigParameter.SaveTo.PROFILE:
+                    parser[self.profile_name][param.name] = param.value
+
+        if Common.is_debug():
+            Common.dump_out(
+                message='Re-writing configuration file {}'.format(self.clokta_config_file)
+            )
+        self.__write_config(
+            path_to_file=self.clokta_config_file,
+            parser=parser
+        )
+
+    def __define_parameters(self):
+        """
+        Hard coded definition of all possible parameters
+        :return: parameters without values
+        :rtype: [ConfigParameter]
+        """
+
+        parameters = [
+            ConfigParameter(
+                name='okta_username',
+                required=True,
+                save_to=ConfigParameter.SaveTo.DEFAULT
+            ),
+            ConfigParameter(
+                name='okta_org',
+                required=True,
+                save_to=ConfigParameter.SaveTo.DEFAULT,
+                default_value='washpost.okta.com'
+            ),
+            ConfigParameter(
+                name='multifactor_preference',
+                required=True,
+                save_to=ConfigParameter.SaveTo.DEFAULT,
+                default_value='Okta Verify with Push',
+                prompt=(
+                    'Enter a preferred MFA - choose between Google Authenticator, SMS text message, '
+                    'Okta Verify, or Okta Verify with Push'
+                )
+            ),
+            ConfigParameter(
+                name='okta_aws_app_url',
+                required=True,
+                save_to=ConfigParameter.SaveTo.PROFILE
+            ),
+            ConfigParameter(
+                name='okta_password',
+                secret=True,
+                save_to=ConfigParameter.SaveTo.KEYRING
+            ),
+            ConfigParameter(
+                name='okta_aws_role_to_assume'
+            ),
+            ConfigParameter(
+                name='okta_onetimepassword_secret',
+                secret=True
+            )
+        ]
+        return parameters
 
     def __initialize_configuration(self):
         """
-        Generate and load config file section
+        Load config file, both the desired section and the default section
         :return: the parameter list
         :rtype: dict
         """
         clokta_cfg_file = configparser.ConfigParser()
         clokta_cfg_file.read(self.clokta_config_file)
 
+        # Make sure we have the bare minimum in the config file.  The DEFAULT section and the app URL.
         if not clokta_cfg_file['DEFAULT']:
             clokta_cfg_file['DEFAULT'] = {
                 'okta_org': ''
             }
-
         if self.profile_name not in clokta_cfg_file.sections():
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\n' + \
-                'Copy the link from the Okta App'
+                  'Copy the link from the Okta App'
             app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
             if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
                 Common.dump_err(
@@ -81,42 +150,21 @@ class CloktaConfiguration(object):
             }
 
         config_section = clokta_cfg_file[self.profile_name]
-        updated_config = ConfigGenerator.generate_configuration(
-            config_section=config_section
-        )
-        self.__write_config(
-            path_to_file=self.clokta_config_file,
-            parser=clokta_cfg_file
-        )
-        return updated_config
+        self.__load_parameters(config_section)
 
-    def update_configuration(self):
-        profile_configuration = self.config_parameters
-        ''' Update a config file section '''
-        parser = configparser.ConfigParser()
-        parser.read(self.clokta_config_file)
-
-        default_keys = [field['name'] for field in ConfigGenerator.config_fields
-                        if 'save_to' in field and field['save_to'] == 'default']
-        for key in default_keys:
-            parser['DEFAULT'][key] = profile_configuration.get(key)
-
-        profile_keys = [field['name'] for field in ConfigGenerator.config_fields
-                        if 'save_to' in field and field['save_to'] == 'profile']
-        for key in profile_keys:
-            parser[self.profile_name][key] = profile_configuration[key]
-
-        if Common.is_debug():
-            Common.dump_out(
-                message='Re-writing configuration file {}'.format(self.clokta_config_file)
-            )
-        self.__write_config(
-            path_to_file=self.clokta_config_file,
-            parser=parser
-        )
-
-    def prompt_for(self, field_name):
-        return ConfigGenerator.prompt_for(field_name)
+    def __prompt_for(self, param_name):
+        if param_name not in self.parameters:
+            raise RuntimeError('Unknown configuration field: {}'.format(param_name))
+        param = self.parameters[param_name]
+        prompt = param.prompt if param.prompt else 'Enter a value for {}'.format(param_name)
+        if param.secret:
+            field_value = getpass.getpass(prompt=prompt+":")
+        else:
+            field_value = click.prompt(text=prompt,
+                                       type=str,
+                                       err=Common.to_std_error(),
+                                       default=param.default_value)
+        return field_value
 
     def apply_credentials(self, credentials):
         """ Save a set of temporary credentials """
@@ -223,18 +271,18 @@ class CloktaConfiguration(object):
             role_preference=self.get('okta_aws_role_to_assume')
         )
         chosen_role = role_chooser.choose_role()
-        self.config_parameters['okta_aws_role_to_assume'] = chosen_role.role_arn
+        self.parameters['okta_aws_role_to_assume'].value = chosen_role.role_arn
         return chosen_role
 
     def determine_password(self):
-        if 'okta_password' not in self.config_parameters or not self.config_parameters['okta_password']:
-            self.config_parameters['okta_password'] = self.prompt_for('okta_password')
-
+            self.parameters['okta_password'].value = self.__prompt_for('okta_password')
 
     def determine_okta_onetimepassword(self):
         """
         Get the one time password, which may be in one password or
         may need to be prompted for
+        :return: the Okta one time password
+        :rtype: string
         """
 
         otp_value = None
@@ -255,4 +303,37 @@ class CloktaConfiguration(object):
                 err=Common.to_std_error()
             )
 
-        self.config_parameters['okta_onetimepassword'] = otp_value
+        return otp_value
+
+    def __load_parameters(self, config_section):
+        """
+        For each parameter this will look first in the OS environment, then in the
+        config file (which will look in both the section and in the DEFAULT section) and then
+        if still not found and the attribute is required, will prompt the user.
+        :param config_section: section of the clokta.cfg file that represents the profile that we will
+        login to though queries on this will also look in the DEFAULT section
+        :type config_section:
+        :return: a map of attributes that define the clokta login, e.g.
+            {"okta_username": "doej", "okta_org": "washpost.okta.com", ...}
+        :rtype: map[string, string]
+        """
+        debug_msg = 'Configuration:\n'
+        for param in self.param_list:
+            from_env = os.getenv(key=param.name, default=-1)
+            if from_env != -1:
+                # If defined in environment, use that first
+                param.value = from_env
+            elif param.name in config_section and config_section[param.name]:
+                # If defined in the config file, make sure it's not a secret, otherwise use it
+                if param.secret:
+                    Common.dump_err(
+                        message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(param.name),
+                        exit_code=6)
+                param.value = config_section[param.name]
+            elif param.required:
+                # We need it.  Prompt for it.
+                param.value = self.__prompt_for(param.name)
+            debug_msg += '     {}={}'.format(param.name, param.value)
+
+        if Common.is_debug():
+            Common.dump_out(message=debug_msg)

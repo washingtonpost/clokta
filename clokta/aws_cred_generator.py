@@ -35,10 +35,9 @@ class AwsCredentialsGenerator:
         """
         Returns the possible roles that can be assumed with the SAML token
         :return: list of roles
-        :rtype: [Role]
+        :rtype: [AwsRole]
         """
-        role_names = [role.role_name for role in self.roles]
-        return role_names
+        return self.roles
 
     def generate_creds(self, role):
         """
