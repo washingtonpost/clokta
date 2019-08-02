@@ -10,12 +10,13 @@ setup(
     include_package_data=True,
     py_modules=['clokta'],
     install_requires=[
-        'Click',
-        'boto3',
-        'requests',
         'beautifulsoup4',
+        'boto3',
+        'click',
         'configparser',
-        'enum-compat'
+        'enum-compat',
+        'keyring',
+        'requests'
     ],
     entry_points={
         'console_scripts': [

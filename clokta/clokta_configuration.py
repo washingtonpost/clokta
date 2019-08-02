@@ -4,6 +4,7 @@ import click
 import configparser
 import enum
 import json
+import keyring
 import os
 
 from clokta.common import Common
@@ -25,6 +26,8 @@ class CloktaConfiguration(object):
     It encapsulates reading and storing values from the clokta.cfg file, reading and storing passwords from
     keyring, and prompting the user for values.
     """
+
+    KEYCHAIN_PATTERN = "clokta.{param_name}"  # The key in the keychain to use when storing a param
 
     def __init__(
         self,
@@ -53,15 +56,21 @@ class CloktaConfiguration(object):
         """
         Write the current version of the configuration to the clokta.cfg file
         """
-        parser = configparser.ConfigParser()
-        parser.read(self.clokta_config_file)
+        clokta_cfg_file = configparser.ConfigParser()
+        clokta_cfg_file.read(self.clokta_config_file)
+        if not clokta_cfg_file.has_section(self.profile_name):
+            clokta_cfg_file.add_section(self.profile_name)
 
         for param in self.param_list:
             if param.value:
                 if param.save_to == ConfigParameter.SaveTo.DEFAULT:
-                    parser['DEFAULT'][param.name] = param.value
+                    clokta_cfg_file.set('DEFAULT', param.name, param.value)
                 elif param.save_to == ConfigParameter.SaveTo.PROFILE:
-                    parser[self.profile_name][param.name] = param.value
+                    clokta_cfg_file.set(self.profile_name, param.name, param.value)
+                elif param.save_to == ConfigParameter.SaveTo.KEYRING:
+                    system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
+                    user = self.get('okta_username')
+                    keyring.set_password(system, user, param.value)
 
         if Common.is_debug():
             Common.dump_out(
@@ -69,7 +78,7 @@ class CloktaConfiguration(object):
             )
         self.__write_config(
             path_to_file=self.clokta_config_file,
-            parser=parser
+            parser=clokta_cfg_file
         )
 
     def __define_parameters(self):
@@ -93,13 +102,8 @@ class CloktaConfiguration(object):
             ),
             ConfigParameter(
                 name='multifactor_preference',
-                required=True,
                 save_to=ConfigParameter.SaveTo.DEFAULT,
-                default_value='Okta Verify with Push',
-                prompt=(
-                    'Enter a preferred MFA - choose between Google Authenticator, SMS text message, '
-                    'Okta Verify, or Okta Verify with Push'
-                )
+                default_value='Okta Verify with Push'
             ),
             ConfigParameter(
                 name='okta_aws_app_url',
@@ -135,7 +139,7 @@ class CloktaConfiguration(object):
             clokta_cfg_file['DEFAULT'] = {
                 'okta_org': ''
             }
-        if self.profile_name not in clokta_cfg_file.sections():
+        if not clokta_cfg_file.has_section(self.profile_name):
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\n' + \
                   'Copy the link from the Okta App'
             app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
@@ -145,18 +149,14 @@ class CloktaConfiguration(object):
                 )
             else:
                 app_url = app_url[:-len("?fromHome=true")]
-            clokta_cfg_file[self.profile_name] = {
-                'okta_aws_app_url': app_url
-            }
+            clokta_cfg_file.add_section(self.profile_name)
+            clokta_cfg_file.set(self.profile_name, 'okta_aws_app_url', app_url)
 
         config_section = clokta_cfg_file[self.profile_name]
         self.__load_parameters(config_section)
 
-    def __prompt_for(self, param_name):
-        if param_name not in self.parameters:
-            raise RuntimeError('Unknown configuration field: {}'.format(param_name))
-        param = self.parameters[param_name]
-        prompt = param.prompt if param.prompt else 'Enter a value for {}'.format(param_name)
+    def __prompt_for(self, param):
+        prompt = param.prompt if param.prompt else 'Enter a value for {}'.format(param.name)
         if param.secret:
             field_value = getpass.getpass(prompt=prompt+":")
         else:
@@ -243,19 +243,22 @@ class CloktaConfiguration(object):
             factor_preference=factor_preference
         )
 
+        chosen_factor = None
         # Is there only one legitimate MFA option available?
         if len(mfas) == 1:
-            factor = fact_chooser.verify_only_factor(factor=mfas[0])
-            if factor:
-                return factor
+            chosen_factor = fact_chooser.verify_only_factor(factor=mfas[0])
 
-        # Has the user pre-selected a legitimate factor?
-        if factor_preference:
-            factor = fact_chooser.verify_preferred_factor()
-            if factor:
-                return factor
+        if not chosen_factor:
+            # Has the user pre-selected a legitimate factor?
+            if factor_preference:
+                chosen_factor = fact_chooser.verify_preferred_factor()
 
-        return fact_chooser.choose_supported_factor()
+        if not chosen_factor:
+            chosen_factor = fact_chooser.choose_supported_factor()
+            if chosen_factor:
+                self.parameters['multifactor_preference'] = chosen_factor
+
+        return chosen_factor
 
     def determine_role(self, possible_roles):
         """
@@ -274,8 +277,15 @@ class CloktaConfiguration(object):
         self.parameters['okta_aws_role_to_assume'].value = chosen_role.role_arn
         return chosen_role
 
-    def determine_password(self):
-            self.parameters['okta_password'].value = self.__prompt_for('okta_password')
+    def prompt_for(self, param_name):
+        """
+        Prompt the user for the parameter and store it in the configuration
+        :param param_name: the name of the parameter
+        :type param_name: str
+        """
+        self.__prompt_for(param_name)
+        param_to_prompt_for = self.parameters[param_name]
+        param_to_prompt_for.value = self.__prompt_for(param_to_prompt_for)
 
     def determine_okta_onetimepassword(self):
         """
@@ -308,7 +318,8 @@ class CloktaConfiguration(object):
     def __load_parameters(self, config_section):
         """
         For each parameter this will look first in the OS environment, then in the
-        config file (which will look in both the section and in the DEFAULT section) and then
+        config file (which will look in both the section and in the DEFAULT section),
+        then in the keychain (for secrets only) and then
         if still not found and the attribute is required, will prompt the user.
         :param config_section: section of the clokta.cfg file that represents the profile that we will
         login to though queries on this will also look in the DEFAULT section
@@ -330,9 +341,14 @@ class CloktaConfiguration(object):
                         message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(param.name),
                         exit_code=6)
                 param.value = config_section[param.name]
-            elif param.required:
+            elif param.secret:
+                system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
+                user = self.get('okta_username')
+                param.value = keyring.get_password(system, user)
+
+            if not param.value and param.required:
                 # We need it.  Prompt for it.
-                param.value = self.__prompt_for(param.name)
+                param.value = self.__prompt_for(param)
             debug_msg += '     {}={}'.format(param.name, param.value)
 
         if Common.is_debug():

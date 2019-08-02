@@ -24,16 +24,19 @@ class RoleAssumer(object):
         """ entry point for the cli tool """
         clokta_config_file = self.data_dir + "clokta.cfg"
         clokta_config = CloktaConfiguration(profile_name=self.profile, clokta_config_file=clokta_config_file)
-        clokta_config.update_configuration()
 
         # Attempt to initiate a connection using just cookies
         okta_initiator = OktaInitiator(data_dir=self.data_dir)
         okta_initiator.initiate_with_cookie(clokta_config)
 
         if okta_initiator.state == OktaInitiator.State.FAIL:
-            # Cookie didn't work.  Prompt for the password and try authenticating with Okta
-            clokta_config.determine_password()
-            mfas = okta_initiator.initiate_with_auth(clokta_config)
+            prompt_for_password = clokta_config.get('okta_password') is None
+            # Cookie didn't work.  Authenticate with Okta
+            while okta_initiator.state == OktaInitiator.State.FAIL:
+                if prompt_for_password:
+                    clokta_config.prompt_for(param_name='okta_password')
+                mfas = okta_initiator.initiate_with_auth(clokta_config)
+                prompt_for_password = True
 
             if okta_initiator.get_state() == OktaInitiator.State.NEED_MFA:
                 chosen_factor = clokta_config.determine_mfa_mechanism(mfas)
@@ -55,6 +58,7 @@ class RoleAssumer(object):
         roles = aws_svc.get_roles()
         role = clokta_config.determine_role(roles)
         aws_svc.generate_creds(role)
+        clokta_config.update_configuration()
 
         self.output_instructions(docker_file=aws_svc.docker_file, bash_file=aws_svc.bash_file)
 
