@@ -256,7 +256,7 @@ class CloktaConfiguration(object):
         if not chosen_factor:
             chosen_factor = fact_chooser.choose_supported_factor()
             if chosen_factor:
-                self.parameters['multifactor_preference'] = chosen_factor
+                self.parameters['multifactor_preference'].value = chosen_factor['clokta_id']
 
         return chosen_factor
 
@@ -283,7 +283,6 @@ class CloktaConfiguration(object):
         :param param_name: the name of the parameter
         :type param_name: str
         """
-        self.__prompt_for(param_name)
         param_to_prompt_for = self.parameters[param_name]
         param_to_prompt_for.value = self.__prompt_for(param_to_prompt_for)
 

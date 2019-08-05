@@ -95,4 +95,5 @@ class FactorChooser(object):
             for okta in self.okta_factors:
                 if cli['provider'] == okta['provider'] and cli['factor_type'] == okta['factorType']:
                         factor_intersection.append(cli)
+                        okta['clokta_id'] = cli['prompt']
         return factor_intersection

@@ -27,27 +27,25 @@ class RoleAssumer(object):
 
         # Attempt to initiate a connection using just cookies
         okta_initiator = OktaInitiator(data_dir=self.data_dir)
-        okta_initiator.initiate_with_cookie(clokta_config)
+        result = okta_initiator.initiate_with_cookie(clokta_config)
 
-        if okta_initiator.state == OktaInitiator.State.FAIL:
+        # If the cookie is expired or non-existent, INPUT_ERROR will be returned
+        if result == OktaInitiator.Result.INPUT_ERROR:
             prompt_for_password = clokta_config.get('okta_password') is None
+            mfas = []
             # Cookie didn't work.  Authenticate with Okta
-            while okta_initiator.state == OktaInitiator.State.FAIL:
+            while result == OktaInitiator.Result.INPUT_ERROR:
                 if prompt_for_password:
                     clokta_config.prompt_for(param_name='okta_password')
-                mfas = okta_initiator.initiate_with_auth(clokta_config)
+                result = okta_initiator.initiate_with_auth(clokta_config, mfas)
                 prompt_for_password = True
 
-            if okta_initiator.get_state() == OktaInitiator.State.NEED_MFA:
+            if result == OktaInitiator.Result.NEED_MFA:
                 chosen_factor = clokta_config.determine_mfa_mechanism(mfas)
                 need_otp = okta_initiator.initiate_mfa(clokta_config=clokta_config, factor=chosen_factor)
                 if need_otp:
                     otp = clokta_config.determine_okta_onetimepassword()
                     okta_initiator.finalize_mfa(clokta_config=clokta_config, factor=chosen_factor, otp=otp)
-
-        if okta_initiator.state == OktaInitiator.State.FAIL:
-            msg = 'Failed to authenticate with Okta'
-            Common.dump_err(message=msg, exit_code=10)
 
         saml_assertion = okta_initiator.saml_assertion
 
