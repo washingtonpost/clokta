@@ -3,7 +3,6 @@
 
 import click
 
-from clokta.awsrole import AwsRole
 from clokta.common import Common
 
 
@@ -24,20 +23,21 @@ class RoleChooser(object):
 
     def choose_role(self):
         # throw an error if no roles are provided
-        #  (defensive coding only - this should not be impossible)
+        #  (defensive coding only - this should not be possible)
         if not self.possible_roles:
             Common.dump_err(
-                message='No AWS Role was assigned to this application!',
-                exit_code=4
+                message='No AWS Role was assigned to this application!'
             )
+            raise ValueError('Unexpected configuration - No AWS role assigned to Okta login.')
 
         # use the one provided if there is only one
         if len(self.possible_roles) == 1:
             role = self.possible_roles[0]
             if self.role_preference and role.role_arn != self.role_preference:
-                Common.echo(
-                    message='Your cofigured role was not found; using {role} role'.format(
-                        role=role.role_name
+                Common.dump_err(
+                    message='Your cofigured role "{notfound}" was not found; using "{found}" role'.format(
+                        notfound=self.role_preference,
+                        found=role.role_name
                     )
                 )
             elif Common.is_debug():

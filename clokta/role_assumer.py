@@ -41,11 +41,15 @@ class RoleAssumer(object):
                 prompt_for_password = True
 
             if result == OktaInitiator.Result.NEED_MFA:
-                chosen_factor = clokta_config.determine_mfa_mechanism(mfas)
-                need_otp = okta_initiator.initiate_mfa(clokta_config=clokta_config, factor=chosen_factor)
-                if need_otp:
-                    otp = clokta_config.determine_okta_onetimepassword()
-                    okta_initiator.finalize_mfa(clokta_config=clokta_config, factor=chosen_factor, otp=otp)
+                done = False
+                force_mfa_prompt = False
+                while not done:
+                    chosen_factor = clokta_config.determine_mfa_mechanism(mfas, force_prompt=force_mfa_prompt)
+                    need_otp = okta_initiator.initiate_mfa(factor=chosen_factor)
+                    otp = clokta_config.determine_okta_onetimepassword(chosen_factor) if need_otp else None
+                    result = okta_initiator.finalize_mfa(clokta_config=clokta_config, factor=chosen_factor, otp=otp)
+                    done = result == OktaInitiator.Result.SUCCESS
+                    force_mfa_prompt = True
 
         saml_assertion = okta_initiator.saml_assertion
 

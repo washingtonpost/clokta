@@ -68,9 +68,12 @@ class CloktaConfiguration(object):
                 elif param.save_to == ConfigParameter.SaveTo.PROFILE:
                     clokta_cfg_file.set(self.profile_name, param.name, param.value)
                 elif param.save_to == ConfigParameter.SaveTo.KEYRING:
-                    system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
-                    user = self.get('okta_username')
-                    keyring.set_password(system, user, param.value)
+                    try:
+                        system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
+                        user = self.get('okta_username')
+                        keyring.set_password(system, user, param.value)
+                    except Exception as e:
+                        Common.dump_err('WARNING: Could not save password to keychain: {}'.format(e))
 
         if Common.is_debug():
             Common.dump_out(
@@ -121,6 +124,12 @@ class CloktaConfiguration(object):
             ConfigParameter(
                 name='okta_onetimepassword_secret',
                 secret=True
+            ),
+            ConfigParameter(
+                # aws_account_number is not really an input parameter, but
+                # something we deduce during login and wanted to save in the clokta.cfg
+                name='aws_account_number',
+                save_to=ConfigParameter.SaveTo.PROFILE
             )
         ]
         return parameters
@@ -147,6 +156,7 @@ class CloktaConfiguration(object):
                 Common.dump_err(
                     "Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6
                 )
+                raise ValueError("Invalid URL")  # TODO: Handle with reprompt
             else:
                 app_url = app_url[:-len("?fromHome=true")]
             clokta_cfg_file.add_section(self.profile_name)
@@ -226,13 +236,15 @@ class CloktaConfiguration(object):
             with open(backup_location, 'w') as bak_file:
                 bak_file.write(contents)
 
-    def determine_mfa_mechanism(self, mfas):
+    def determine_mfa_mechanism(self, mfas, force_prompt):
         """
         Determine which of the passed in MFA mechanisms to use.  This may be specified
         by the configuration's 'multifactor_preference' if not prompt the user and put
         in the configuration
         :param mfas: possible mechanisms to use for MFA
         :type mfas: List[dict]
+        :param force_prompt: whether to ignore any preconfigured default and prompt the user
+        :type force_prompt: bool
         :return: the chosen MFA mechanism to use
         :rtype: dict
         """
@@ -250,7 +262,7 @@ class CloktaConfiguration(object):
 
         if not chosen_factor:
             # Has the user pre-selected a legitimate factor?
-            if factor_preference:
+            if factor_preference and not force_prompt:
                 chosen_factor = fact_chooser.verify_preferred_factor()
 
         if not chosen_factor:
@@ -265,7 +277,7 @@ class CloktaConfiguration(object):
         Determine which of several possible roles to assume by looking first in the config for a default role,
         and second by prompting the user.
         :param possible_roles: list of possible roles to assume
-        :type possible_roles: str
+        :type possible_roles: List[AwsRole]
         :return: the role chosen
         :rtype: AwsRole
         """
@@ -275,6 +287,8 @@ class CloktaConfiguration(object):
         )
         chosen_role = role_chooser.choose_role()
         self.parameters['okta_aws_role_to_assume'].value = chosen_role.role_arn
+        # We also grab the account number out of the role ARN
+        self.parameters['aws_account_number'].value = chosen_role.account
         return chosen_role
 
     def prompt_for(self, param_name):
@@ -286,10 +300,12 @@ class CloktaConfiguration(object):
         param_to_prompt_for = self.parameters[param_name]
         param_to_prompt_for.value = self.__prompt_for(param_to_prompt_for)
 
-    def determine_okta_onetimepassword(self):
+    def determine_okta_onetimepassword(self, factor):
         """
         Get the one time password, which may be in one password or
         may need to be prompted for
+        :param factor: the mfa mechanism being used.  Holds a user friendly label for identifying which mechanism.
+        :type factor: dict
         :return: the Okta one time password
         :rtype: string
         """
@@ -302,16 +318,16 @@ class CloktaConfiguration(object):
             except ImportError:
                 msg = 'okta_onetimepassword_secret provided in config but "onetimepass" is not installed. ' + \
                       'run: pip install onetimepass'
-                Common.dump_err(message=msg, exit_code=3)
+                Common.dump_err(message=msg)
+                raise ValueError("Illegal configuration")
             otp_value = otp.get_totp(self.get('okta_onetimepassword_secret'))
 
         if not otp_value:
             otp_value = click.prompt(
-                text='Enter your multifactor authentication token',
+                text='Enter your {} one time password'.format(factor['clokta_id']),
                 type=str,
                 err=Common.to_std_error()
             )
-
         return otp_value
 
     def __load_parameters(self, config_section):
@@ -337,13 +353,16 @@ class CloktaConfiguration(object):
                 # If defined in the config file, make sure it's not a secret, otherwise use it
                 if param.secret:
                     Common.dump_err(
-                        message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(param.name),
-                        exit_code=6)
+                        message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(param.name))
+                    raise ValueError("Illegal configuration")
                 param.value = config_section[param.name]
             elif param.secret:
                 system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
                 user = self.get('okta_username')
-                param.value = keyring.get_password(system, user)
+                try:
+                    param.value = keyring.get_password(system, user)
+                except Exception as e:
+                    Common.dump_err('WARNING: Could not read password from keychain: {}'.format(e))
 
             if not param.value and param.required:
                 # We need it.  Prompt for it.

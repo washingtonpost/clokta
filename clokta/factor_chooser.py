@@ -1,4 +1,3 @@
-''' ProfileManager class must be instantiated prior to use '''
 import click
 
 from clokta.common import Common
@@ -6,10 +5,10 @@ from clokta.factors import Factors
 
 
 class FactorChooser(object):
-    ''' Supports MFA source determination '''
+    """ Supports MFA source determination """
 
     def __init__(self, factors, factor_preference=None):
-        ''' Instance constructor '''
+        """ Instance constructor """
         self.okta_factors = factors
         self.factor_preference = factor_preference
 
@@ -17,7 +16,7 @@ class FactorChooser(object):
         self.option_factors = self.__filter_unsupported_factors()
 
     def verify_only_factor(self, factor):
-        ''' Return the Okta MFA configuration provided it is a supported configuration '''
+        """ Return the Okta MFA configuration provided it is a supported configuration """
         verified_factors = [
             opt for opt in self.option_factors
             if opt['provider'] == factor['provider'] and
@@ -30,7 +29,7 @@ class FactorChooser(object):
             return factor
 
     def verify_preferred_factor(self):
-        ''' Return the Okta MFA configuration for the matching, supported configuration '''
+        """ Return the Okta MFA configuration for the matching, supported configuration """
         preferred_factors = [
             opt for opt in self.option_factors
             if self.factor_preference == opt['prompt']
@@ -51,10 +50,11 @@ class FactorChooser(object):
         else:
             msg = 'The MFA option \'{}\' in your configuration file is not available.\nAvailable options are {}'.format(
                 self.factor_preference, [opt['prompt'] for opt in self.option_factors])
-            Common.dump_err(message=msg, exit_code=3)
+            Common.dump_err(message=msg)
+            raise ValueError("Unexpected MFA option")  # TODO: Reprompt
 
     def choose_supported_factor(self):
-        ''' Give the user a choice from the intersection of configured and supported factors '''
+        """ Give the user a choice from the intersection of configured and supported factors """
         index = 1
         for opt in self.option_factors:
             msg = '{index} - {prompt}'.format(index=index, prompt=opt['prompt'])

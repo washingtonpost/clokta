@@ -58,7 +58,7 @@ class OktaInitiator:
         Any other problem thows an exception.
         """
         self.saml_assertion = None
-        result = self.__request_saml_assertion(configuration=clokta_config)
+        result = self.__request_saml_assertion(configuration=clokta_config, use_session_token=False)
         return result
 
     def initiate_with_auth(self, clokta_config, mfas_to_fill):
@@ -80,25 +80,22 @@ class OktaInitiator:
 
         # If no MFA was needed, then we've authed and can request SAML token
         if result == OktaInitiator.Result.SUCCESS:
-            self.__request_saml_assertion(configuration=clokta_config, session_token=self.session_token)
+            self.__request_saml_assertion(configuration=clokta_config, use_session_token=True)
         elif result == OktaInitiator.Result.NEED_MFA:
             mfas_to_fill[:] = self.factors
         return result
 
-    def initiate_mfa(self, clokta_config, factor):
+    def initiate_mfa(self, factor):
         """
         Next step after initiate_with_auth in the multistep process of getting a SAML token from Okta.
         Some MFA mechanism, like SMS, need to perform an action before prompting the user for response.
         After this state will still be NEED_MFA and you need to call finalize_mfa
-        :param clokta_config: clokta configuration with mfa response
-        :type clokta_config: CloktaConfiguration
         :param factor: the MFA mechanism to use
         :type factor: dict
         :return: whether a one time password will be needed to complete MFA
         :rtype: bool
         """
 
-        need_otp = True
         if factor['factorType'] == 'sms':
             self.__okta_mfa_verification(
                 factor_dict=factor,
@@ -106,15 +103,7 @@ class OktaInitiator:
                 otp_value=None
             )
 
-        if factor['factorType'] == 'push':
-            need_otp = False
-            session_token = self.__do_mfa_with_push(
-                factor=factor,
-                state_token=self.intermediate_state_token
-            )
-            # Now that we have a session token, request the SAML token
-            self.__request_saml_assertion(configuration=clokta_config, session_token=session_token)
-
+        need_otp = factor['factorType'] != 'push'
         return need_otp
 
     def finalize_mfa(self, clokta_config, factor, otp):
@@ -127,37 +116,49 @@ class OktaInitiator:
         :type factor: dict
         :param otp: the one time password for MFA
         :type otp: str
+        :return: SUCCESS if succesfully authenticated.  INPUT_ERROR if the otp was not correct.
         """
 
-        session_token = self.__submit_mfa_response(factor=factor, otp=otp)
+        if factor['factorType'] == 'push':
+            result = self.__do_mfa_with_push(
+                factor=factor,
+                state_token=self.intermediate_state_token
+            )
+        else:
+            result = self.__submit_mfa_response(factor=factor, otp=otp)
 
-        if Common.is_debug():
-            Common.dump_out(message='Okta session token: {}'.format(session_token))
+        if result == OktaInitiator.Result.SUCCESS:
+            if Common.is_debug():
+                Common.dump_out(message='Okta session token: {}'.format(self.session_token))
 
-        # Now that we have a session token, request the SAML token
-        self.__request_saml_assertion(configuration=clokta_config, session_token=session_token)
+            # Now that we have a session token, request the SAML token
+            self.__request_saml_assertion(configuration=clokta_config, use_session_token=True)
+        return result
 
-    def __request_saml_assertion(self, configuration, session_token=None):
+    def __request_saml_assertion(self, configuration, use_session_token):
         """
         request saml 2.0 assertion
         :param configuration: the clokta configuration
         :type configuration: CloktaConfiguration
-        :param session_token: a token returned by authenticating with okta.
-            if None request will only work if there is a valid cookie
-        :type session_token: str
+        :param use_session_token: whether to submit a session token with the request.
+        The session token will be obtained from self.session_token
+        :type use_session_token: bool
         :return: SUCCESS if succesfully got SAML token or INPUT_ERROR if cookie expired.
         Any other problem thows an exception.
         """
         self.saml_assertion = None
+        if use_session_token and not self.session_token:
+            raise ValueError("No session token to use")
+
         response = self.__post_saml_request(
-            session_token=session_token,
+            use_session_token=use_session_token,
             configuration=configuration
         )
 
         if Common.is_debug():
             Common.dump_out(
-                message='SAML response {} session token: {}'.format(
-                    "with" if session_token else "without", response.content
+                message='Requested SAML assertion from Okta {} session token.\nResponse: {}'.format(
+                    "with" if use_session_token else "without", response.content
                 )
             )
 
@@ -166,20 +167,26 @@ class OktaInitiator:
             if inputtag.get('name') == 'SAMLResponse':
                 self.saml_assertion = inputtag.get('value')
 
-        # If a session token is not passed in, we consider a failure as a normal possibility
-        if not self.saml_assertion and session_token:
-            if Common.is_debug():
-                Common.dump_out(
-                    'Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.'
-                )
-            raise RuntimeError('Unexpected response from Okta.')
-        return OktaInitiator.Result.SUCCESS if self.saml_assertion else OktaInitiator.Result.INPUT_ERROR
+        if not self.saml_assertion:
+            if not use_session_token:
+                # If a session token is not passed in, we consider a failure as a normal possibility
+                if Common.is_debug():
+                    Common.dump_out('Request without session token rejected.')
+                return OktaInitiator.Result.INPUT_ERROR
+            else:
+                if Common.is_debug():
+                    Common.dump_out(
+                        'Expecting \'<input name="SAMLResponse" value="...">\' in Okta response, but not found.'
+                    )
+                raise RuntimeError('Unexpected response from Okta.')
+        else:
+            return OktaInitiator.Result.SUCCESS
 
-    def __post_saml_request(self, session_token, configuration):
+    def __post_saml_request(self, use_session_token, configuration):
         """
         Send request to SAML token to Okta
-        :param session_token: the session token gotten from authenticating with Okta
-        :type session_token: str
+        :param use_session_token: whether to pass a session token gotten from authenticating with Okta
+        :type use_session_token: bool
         :param configuration: the clokta configuration with 'okta_aws_app_url'
         :type configuration: CloktaConfiguration
         :return: the HTTP response
@@ -187,8 +194,8 @@ class OktaInitiator:
         """
         cookie_file = self.data_dir + 'clokta.cookies'
         url = configuration.get('okta_aws_app_url')
-        if session_token:
-            url += '?onetimetoken=' + session_token
+        if use_session_token:
+            url += '?onetimetoken=' + self.session_token
         try:
             with open(cookie_file, 'rb') as f:
                 cookies = pickle.load(f)
@@ -220,20 +227,19 @@ class OktaInitiator:
         self.session_token = None
         self.factors = []
 
-        okta_response = None
         try:
             okta_response = self.__post_auth_request(configuration)
         except requests.exceptions.HTTPError as http_err:
             if Common.is_debug():
                 Common.dump_out(
-                    'Okta returned this credentials/password related error: {}\n' +
-                    'This could be a mistyped password or a misconfigured username ' +
-                    'or URL.'.format(http_err))
+                    ('Okta returned this credentials/password related error: {}\n' +
+                        'This could be a mistyped password or a misconfigured username ' +
+                        'or URL.').format(http_err))
             else:
-                Common.dump_out("Failure.  Wrong password or misconfigured session.")
-                return OktaInitiator.Result.INPUT_ERROR
+                Common.dump_err("Failure.  Wrong password or misconfigured session.")
+            return OktaInitiator.Result.INPUT_ERROR
         except Exception as err:
-            Common.dump_out('Unexpected error authenticating with Okta: {}'.format(err))
+            Common.dump_err('Unexpected error authenticating with Okta: {}'.format(err))
             raise
 
         if 'sessionToken' in okta_response and okta_response['sessionToken']:
@@ -242,7 +248,7 @@ class OktaInitiator:
             return OktaInitiator.Result.SUCCESS
         elif 'status' in okta_response and okta_response['status'] == 'MFA_ENROLL':
             # handle case where MFA is required but no factors have been enabled
-            Common.dump_out('Please enroll in multi-factor authentication before using this tool')
+            Common.dump_err('Please enroll in multi-factor authentication before using this tool')
             raise ValueError("No MFA mechanisms configured")
         elif 'status' in okta_response and okta_response['status'] == 'MFA_REQUIRED':
             self.factors = okta_response['_embedded']['factors']
@@ -252,7 +258,7 @@ class OktaInitiator:
             self.intermediate_state_token = okta_response['stateToken']
             return OktaInitiator.Result.NEED_MFA
         else:
-            Common.dump_out('Unexpected response from Okta authentication request')
+            Common.dump_err('Unexpected response from Okta authentication request')
             raise RuntimeError("Unexpected response from Okta")
 
     def __post_auth_request(self, configuration):
@@ -276,6 +282,11 @@ class OktaInitiator:
         url = 'https://' + configuration.get('okta_org') + '/api/v1/authn'
 
         response = requests.post(url, data=json.dumps(payload), headers=headers)
+        if Common.is_debug():
+            Common.dump_out(
+                'Requested password-based authentication with Okta.\n' +
+                'Response: {}'.format(response.content))
+
         if response.status_code == requests.codes.ok:  # pylint: disable=E1101
             resp = json.loads(response.text)
             return resp
@@ -283,7 +294,15 @@ class OktaInitiator:
             response.raise_for_status()
 
     def __wait_for_push_result(self, state_token, push_response):
-        """Wait for push response acknowledgement"""
+        """
+        A request was sent to Okta querying the status of a push.  Process the response, pull the session
+        token from it, and store in self.session_token
+        :param state_token: a token received from Okta identifying this authentication attempt session
+        :type state_token: str
+        :param push_response: the HTTP response from the HTTP request
+        :type push_response: json
+        :return: SUCCESS if response indicates SUCCESS.  INPUT_ERROR if timed out.
+        """
         url = push_response['_links']['next']['href']
         headers = {
             'Accept': 'application/json',
@@ -311,10 +330,12 @@ class OktaInitiator:
 
         if response_data and 'sessionToken' in response_data:
             Common.echo(message='Session confirmed')
-            return response_data['sessionToken']
+            self.session_token = response_data['sessionToken']
+            return OktaInitiator.Result.SUCCESS
         else:
             msg = 'Timeout expired ({} seconds)'.format(wait_for)
-            Common.dump_err(message=msg, exit_code=3)
+            Common.dump_err(message=msg)
+            return OktaInitiator.Result.INPUT_ERROR
 
     def __okta_mfa_verification(self, factor_dict, state_token, otp_value=None):
         """Sends the MFA token entered and retuns the response"""
@@ -330,7 +351,14 @@ class OktaInitiator:
         if otp_value:
             payload['answer'] = otp_value
 
-        response = requests.post(url, data=json.dumps(payload), headers=headers)
+        data = json.dumps(payload)
+        if Common.is_debug():
+            Common.dump_out("Sending MFA verification to...\nurl: {}\nbody: {}".format(url, data))
+        response = requests.post(url, data=data, headers=headers)
+        if Common.is_debug():
+            Common.dump_out(
+                "Received {} response from Okta: {}".format(response.status_code, json.dumps(response.json()))
+            )
         if response.status_code == requests.codes.ok:  # pylint: disable=E1101
             return response.json()
         else:
@@ -343,33 +371,38 @@ class OktaInitiator:
         :type factor: dict
         :param otp: the one time password for MFA
         :type otp: str
+        :return: SUCCESS if received a session token from Okta.  INPUT_ERROR if Okta reports incorrect
+        one time password
+        :rtype: OktaInitiator.Result
         """
-        session_token = None
+        self.session_token = None
         try:
             mfa_response = self.__okta_mfa_verification(
                 factor_dict=factor,
                 state_token=self.intermediate_state_token,
                 otp_value=otp
             )
-            session_token = mfa_response['sessionToken']
+            self.session_token = mfa_response['sessionToken']
+            return OktaInitiator.Result.SUCCESS
         except requests.exceptions.HTTPError as http_err:
-            msg = 'Okta returned this MFA related error: {}'.format(http_err)
-            Common.dump_err(message=msg, exit_code=1)
+            Common.dump_err('Okta returned this MFA related error: {}'.format(http_err))
+            return OktaInitiator.Result.INPUT_ERROR
         except Exception as err:
             msg = 'Unexpected error: {}'.format(err)
-            Common.dump_err(message=msg, exit_code=2)
-
-        return session_token
+            Common.dump_err(message=msg)
+            raise ValueError("Unexpected error with MFA")
 
     def __do_mfa_with_push(self, factor, state_token):
         """
-        Send push re: Okta Verify
+        Send push re: Okta Verify and wait for response.
+        If succesful, session token will be stored in self.session_token
         :param factor: mfa information
         :type factor: dict
         :param state_token: token used in MFA back and forth
         :type: str
-        :return: the session token
-        :rtype: str
+        :return: SUCCESS if push reported success.  INPUT_ERROR if user never responded.  Any other
+        possibilities will result in an exception
+        :rtype: OktaInitiator.Result
         """
         url = factor['_links']['verify']['href']
         headers = {
