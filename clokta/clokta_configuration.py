@@ -394,6 +394,7 @@ class CloktaConfiguration(object):
         clokta_cfg_file.read(os.path.expanduser(clokta_config_file))
         section_names = clokta_cfg_file.sections()
         for section_name in section_names:
-            acct_num = clokta_cfg_file.get(section=section_name, option='aws_account_number')
-            if acct_num:
-                Common.echo("{name} = {number}".format(name=section_name, number=acct_num))
+            if clokta_cfg_file.has_option(section=section_name, option='aws_account_number'):
+                acct_num = clokta_cfg_file.get(section=section_name, option='aws_account_number')
+                if acct_num:
+                    Common.echo("{name} = {number}".format(name=section_name, number=acct_num))
