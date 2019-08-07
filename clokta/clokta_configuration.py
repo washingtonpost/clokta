@@ -1,4 +1,6 @@
+import base64
 import getpass
+import uuid
 
 import click
 import configparser
@@ -71,7 +73,8 @@ class CloktaConfiguration(object):
                     try:
                         system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
                         user = self.get('okta_username')
-                        keyring.set_password(system, user, param.value)
+                        password = self.__obfuscate(param.value)
+                        keyring.set_password(system, user, password)
                     except Exception as e:
                         Common.dump_err('WARNING: Could not save password to keychain: {}'.format(e))
 
@@ -376,9 +379,10 @@ class CloktaConfiguration(object):
                 system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
                 user = self.get('okta_username')
                 try:
-                    param.value = keyring.get_password(system, user)
+                    obfuscated = keyring.get_password(system, user)
                 except Exception as e:
                     Common.dump_err('WARNING: Could not read password from keychain: {}'.format(e))
+                param.value = self.__deobfuscate(obfuscated)
 
             if not param.value and param.required:
                 # We need it.  Prompt for it.
@@ -387,6 +391,47 @@ class CloktaConfiguration(object):
 
         if Common.is_debug():
             Common.dump_out(message=debug_msg)
+
+    def __obfuscate(self, secret):
+        """
+        A real simple obfuscation so passwords don't appear in the keychain as plaintext
+        This is not encryption and can easily be cracked or reverse engineered
+        Counting on the keyring's security to protect the password
+        :param secret: a secret to obfuscate
+        :type secret: str
+        :return: a obfuscated version that can be turned back into the secret with __deobfuscate
+        :rtype: str
+        """
+        if not secret:
+            return None
+
+        key = str(uuid.getnode())
+        enc = []
+        for i in range(len(secret)):
+            key_c = key[i % len(key)]
+            enc_c = chr((ord(secret[i]) + ord(key_c)) % 256)
+            enc.append(enc_c)
+        return base64.urlsafe_b64encode("".join(enc).encode()).decode()
+
+    def __deobfuscate(self, obfuscated):
+        """
+        Turn a string that was obfuscated with __obfuscate back into the original
+        :param obfuscated: obfuscated string
+        :type obfuscated: str
+        :return: the original string
+        :rtype: str
+        """
+        if not obfuscated:
+            return None
+
+        key = str(uuid.getnode())
+        dec = []
+        enc = base64.urlsafe_b64decode(obfuscated).decode()
+        for i in range(len(enc)):
+            key_c = key[i % len(key)]
+            dec_c = chr((256 + ord(enc[i]) - ord(key_c)) % 256)
+            dec.append(dec_c)
+        return "".join(dec)
 
     @classmethod
     def dump_account_numbers(cls, clokta_config_file):
