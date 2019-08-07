@@ -90,7 +90,7 @@ class AwsCredentialsGenerator:
         Generates a shell script to source in order to apply credentials to the shell environment.
         """
         creds = credentials['Credentials']
-        output_file_name = '{dir}/{profile}.sh'.format(
+        output_file_name = '{dir}{profile}.sh'.format(
             dir=os.path.expanduser(self.data_dir),
             profile=self.clokta_config.profile_name
         )
@@ -106,7 +106,7 @@ class AwsCredentialsGenerator:
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
 
-        short_output_file_name = '{dir}/{profile}.sh'.format(
+        short_output_file_name = '{dir}{profile}.sh'.format(
             dir=self.data_dir,
             profile=self.clokta_config.profile_name
         )
@@ -117,7 +117,7 @@ class AwsCredentialsGenerator:
         Generates a Docker .env file that can be used with docker compose to inject into the environment.
         """
         creds = credentials['Credentials']
-        output_file_name = '{dir}/{profile}.env'.format(
+        output_file_name = '{dir}{profile}.env'.format(
             dir=os.path.expanduser(self.data_dir),
             profile=self.clokta_config.profile_name
         )
@@ -131,7 +131,7 @@ class AwsCredentialsGenerator:
         with open(output_file_name, mode='w') as file_handle:
             file_handle.writelines(lines)
 
-        short_output_file_name = '{dir}/{profile}.env'.format(
+        short_output_file_name = '{dir}{profile}.env'.format(
             dir=self.data_dir,
             profile=self.clokta_config.profile_name
         )

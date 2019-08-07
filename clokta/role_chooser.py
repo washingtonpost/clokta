@@ -22,6 +22,14 @@ class RoleChooser(object):
         self.role_preference = role_preference
 
     def choose_role(self):
+        """
+        Look for a default role defined and, if not, prompt the user for one
+        Allow the user to also specify the role is the default to be used
+        from now on
+        :return: a tuple of the chosen role and whether it is the
+        new default
+        :rtype: AwsRole, bool
+        """
         # throw an error if no roles are provided
         #  (defensive coding only - this should not be possible)
         if not self.possible_roles:
@@ -42,23 +50,33 @@ class RoleChooser(object):
                 )
             elif Common.is_debug():
                 Common.echo(
-                    message='Using the configured role {role} role'.format(
+                    message="Using default role '{role}'".format(
                         role=role.role_arn
                     )
                 )
-            return role
+            return role, True
 
         # use the configured role if it matches one from the the SAML assertion
         for role in self.possible_roles:
             if role.role_arn == self.role_preference:
-                return role
+                message = "Using default role '{}'".format(role.role_name)
+                extra_message = '.  Run "clokta --no-default-role" to override.'
+                if Common.get_output_format() == Common.long_out:
+                    Common.echo(message + extra_message)
+                else:
+                    Common.echo(message)
+                return role, False
 
         # make the user choose
-        return self.__prompt_for_role()
+        return self.__prompt_for_role(with_set_default_option=True)
 
-    def __prompt_for_role(self):
+    def __prompt_for_role(self, with_set_default_option):
         """
         Give the user a choice from the intersection of configured and supported factors
+        :param with_set_default_option: if True will add an option for setting a default role
+        :type with_set_default_option: bool
+        :return: a tuple of what role was chosen and whether it is the new default
+        :rtype: AwsRole, bool
         """
         index = 1
         for role in self.possible_roles:
@@ -68,7 +86,8 @@ class RoleChooser(object):
             )
             Common.echo(message=msg, bold=True)
             index += 1
-
+        if with_set_default_option:
+            Common.echo('{index} - set a default role'.format(index=index))
         raw_choice = None
         try:
             raw_choice = click.prompt(text='Choose a Role ARN to use', type=int, err=Common.to_std_error())
@@ -77,11 +96,16 @@ class RoleChooser(object):
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
             return self.__prompt_for_role()
 
+        if choice == len(self.possible_roles):
+            # They want to set a default.  Prompt again (just without the set-default option)
+            # and return that chosen role and that it's the new default
+            chosen_option, _ = self.__prompt_for_role(with_set_default_option=False)
+            return chosen_option, True
         if len(self.possible_roles) > choice >= 0:
             pass
         else:
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
-            return self.__prompt_for_role()
+            return self.__prompt_for_role(with_set_default_option=with_set_default_option)
 
         chosen_option = self.possible_roles[choice]
         if Common.is_debug():
@@ -92,4 +116,4 @@ class RoleChooser(object):
                 )
             )
 
-        return chosen_option
+        return chosen_option, False

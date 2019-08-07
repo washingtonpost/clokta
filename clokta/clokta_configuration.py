@@ -84,6 +84,19 @@ class CloktaConfiguration(object):
             parser=clokta_cfg_file
         )
 
+    def reset_default_role(self):
+        # Clear it from the clokta.cfg file
+        clokta_cfg_file = configparser.ConfigParser()
+        clokta_cfg_file.read(self.clokta_config_file)
+        clokta_cfg_file.remove_option(self.profile_name, 'okta_aws_role_to_assume')
+        self.__write_config(
+            path_to_file=self.clokta_config_file,
+            parser=clokta_cfg_file
+        )
+
+        # And reset it
+        self.parameters['okta_aws_role_to_assume'].value = None
+
     def __define_parameters(self):
         """
         Hard coded definition of all possible parameters
@@ -285,8 +298,10 @@ class CloktaConfiguration(object):
             possible_roles=possible_roles,
             role_preference=self.get('okta_aws_role_to_assume')
         )
-        chosen_role = role_chooser.choose_role()
+        chosen_role, make_default = role_chooser.choose_role()
         self.parameters['okta_aws_role_to_assume'].value = chosen_role.role_arn
+        if make_default:
+            self.parameters['okta_aws_role_to_assume'].save_to = ConfigParameter.SaveTo.PROFILE
         # We also grab the account number out of the role ARN
         self.parameters['aws_account_number'].value = chosen_role.account
         return chosen_role
@@ -326,7 +341,8 @@ class CloktaConfiguration(object):
             otp_value = click.prompt(
                 text='Enter your {} one time password'.format(factor['clokta_id']),
                 type=str,
-                err=Common.to_std_error()
+                err=Common.to_std_error(),
+                default=''
             )
         return otp_value
 
@@ -371,3 +387,13 @@ class CloktaConfiguration(object):
 
         if Common.is_debug():
             Common.dump_out(message=debug_msg)
+
+    @classmethod
+    def dump_account_numbers(cls, clokta_config_file):
+        clokta_cfg_file = configparser.ConfigParser()
+        clokta_cfg_file.read(os.path.expanduser(clokta_config_file))
+        section_names = clokta_cfg_file.sections()
+        for section_name in section_names:
+            acct_num = clokta_cfg_file.get(section=section_name, option='aws_account_number')
+            if acct_num:
+                Common.echo("{name} = {number}".format(name=section_name, number=acct_num))

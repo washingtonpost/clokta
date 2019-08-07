@@ -20,10 +20,18 @@ class RoleAssumer(object):
         """folder to store files in"""
         self.data_dir = "~/.clokta/"
 
-    def assume_role(self):
-        """ entry point for the cli tool """
+    def assume_role(self, reset_default_role):
+        """
+        entry point for the cli tool
+        :param reset_default_role: whether to reset whatever the default role is for this profile
+        :type reset_default_role: bool
+        """
         clokta_config_file = self.data_dir + "clokta.cfg"
-        clokta_config = CloktaConfiguration(profile_name=self.profile, clokta_config_file=clokta_config_file)
+
+        clokta_config = CloktaConfiguration(profile_name=self.profile,
+                                            clokta_config_file=clokta_config_file)
+        if reset_default_role:
+            clokta_config.reset_default_role()
 
         # Attempt to initiate a connection using just cookies
         okta_initiator = OktaInitiator(data_dir=self.data_dir)
@@ -72,12 +80,12 @@ class RoleAssumer(object):
             )
         elif Common.get_output_format() == Common.long_out:
             Common.echo(
-                message='AWS keys generated. To use with docker compose include\n\t{}\n'.format(docker_file) +
+                message='AWS keys generated. To use with docker-compose include\n\t{}\n'.format(docker_file) +
                         'To use with shell scripts source\n\t{}\n'.format(bash_file) +
                         'to use in the current interactive shell run\n\texport AWS_PROFILE={}\n'.format(self.profile)
             )
         else:
             Common.echo(
-                message='Run "clokta -i" for steps to use generated credentials or just run\n' +
+                message='Run "clokta -i" for how to use credentials and override defaults or just run\n' +
                         '\texport AWS_PROFILE={}'.format(self.profile)
             )
