@@ -9,6 +9,8 @@ import json
 import keyring
 import os
 
+from keyring.errors import KeyringError
+
 from clokta.common import Common
 from clokta.config_parameter import ConfigParameter
 from clokta.factor_chooser import FactorChooser
@@ -380,9 +382,15 @@ class CloktaConfiguration(object):
                 user = self.get('okta_username')
                 try:
                     obfuscated = keyring.get_password(system, user)
+                    param.value = self.__deobfuscate(obfuscated)
                 except Exception as e:
-                    Common.dump_err('WARNING: Could not read password from keychain: {}'.format(e))
-                param.value = self.__deobfuscate(obfuscated)
+                    fail_msg = str(e)
+                    if fail_msg.find('Security Auth Failure') >= 0:
+                        Common.dump_err('WARNING: Denied access to password in keychain.  ' +
+                                        'If prompted by keychain, allow access.\n' +
+                                        'You may need to reboot your machine before keychain will prompt again.')
+                    else:
+                        Common.dump_err('WARNING: Could not read password from keychain: {}'.format(e))
 
             if not param.value and param.required:
                 # We need it.  Prompt for it.

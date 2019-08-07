@@ -54,7 +54,7 @@ class RoleChooser(object):
                         role=role.role_arn
                     )
                 )
-            return role, True
+            return role, False
 
         # use the configured role if it matches one from the the SAML assertion
         for role in self.possible_roles:
@@ -65,7 +65,7 @@ class RoleChooser(object):
                     Common.echo(message + extra_message)
                 else:
                     Common.echo(message)
-                return role, False
+                return role, True
 
         # make the user choose
         return self.__prompt_for_role(with_set_default_option=True)
