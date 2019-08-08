@@ -14,10 +14,6 @@ from clokta.common import Common
 
 class OktaInitiator:
 
-    # type hints used by PyCharm
-
-    session_token: str
-
     class Result(Enum):
         INPUT_ERROR = 1
         NEED_MFA = 2

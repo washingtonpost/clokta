@@ -1,5 +1,6 @@
 import base64
 import getpass
+import sys
 import uuid
 
 import click
@@ -8,8 +9,6 @@ import enum
 import json
 import keyring
 import os
-
-from keyring.errors import KeyringError
 
 from clokta.common import Common
 from clokta.config_parameter import ConfigParameter
@@ -45,6 +44,7 @@ class CloktaConfiguration(object):
         self.clokta_config_file = os.path.expanduser(clokta_config_file)
         self.param_list = self.__define_parameters()  # type: [ConfigParameter]
         self.parameters = {p.name: p for p in self.param_list}
+        self.displayed_python2_warning = False
         self.__initialize_configuration()
 
     def get(self, parameter_name):
@@ -72,13 +72,7 @@ class CloktaConfiguration(object):
                 elif param.save_to == ConfigParameter.SaveTo.PROFILE:
                     clokta_cfg_file.set(self.profile_name, param.name, param.value)
                 elif param.save_to == ConfigParameter.SaveTo.KEYRING:
-                    try:
-                        system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
-                        user = self.get('okta_username')
-                        password = self.__obfuscate(param.value)
-                        keyring.set_password(system, user, password)
-                    except Exception as e:
-                        Common.dump_err('WARNING: Could not save password to keychain: {}'.format(e))
+                    self.__save_to_keyring(param.name, param.value)
 
         if Common.is_debug():
             Common.dump_out(
@@ -174,7 +168,7 @@ class CloktaConfiguration(object):
                 Common.dump_err(
                     "Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6
                 )
-                raise ValueError("Invalid URL")  # TODO: Handle with reprompt
+                raise ValueError("Invalid URL")
             else:
                 app_url = app_url[:-len("?fromHome=true")]
             clokta_cfg_file.add_section(self.profile_name)
@@ -378,19 +372,7 @@ class CloktaConfiguration(object):
                     raise ValueError("Illegal configuration")
                 param.value = config_section[param.name]
             elif param.secret:
-                system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param.name)
-                user = self.get('okta_username')
-                try:
-                    obfuscated = keyring.get_password(system, user)
-                    param.value = self.__deobfuscate(obfuscated)
-                except Exception as e:
-                    fail_msg = str(e)
-                    if fail_msg.find('Security Auth Failure') >= 0:
-                        Common.dump_err('WARNING: Denied access to password in keychain.  ' +
-                                        'If prompted by keychain, allow access.\n' +
-                                        'You may need to reboot your machine before keychain will prompt again.')
-                    else:
-                        Common.dump_err('WARNING: Could not read password from keychain: {}'.format(e))
+                param.value = self.__read_from_keyring(param.name)
 
             if not param.value and param.required:
                 # We need it.  Prompt for it.
@@ -399,6 +381,59 @@ class CloktaConfiguration(object):
 
         if Common.is_debug():
             Common.dump_out(message=debug_msg)
+
+    def __read_from_keyring(self, param_name):
+        """
+        Read a secret from the OS keychain
+        :param param_name: the name of the parameter
+        :type param_name: str
+        :return: the value or None if not found or otherwise could not get value
+        :rtype: str
+        """
+        param_value = None
+        if sys.version_info > (3, 0):
+            system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param_name)
+            user = self.get('okta_username')
+            try:
+                obfuscated = keyring.get_password(system, user)
+                param_value = self.__deobfuscate(obfuscated)
+            except Exception as e:
+                fail_msg = str(e)
+                if fail_msg.find('Security Auth Failure') >= 0:
+                    Common.dump_err('WARNING: Denied access to password in keychain.  ' +
+                                    'If prompted by keychain, allow access.\n' +
+                                    'You may need to reboot your machine before keychain will prompt again.')
+                else:
+                    Common.dump_err('WARNING: Could not read password from keychain: {}'.format(e))
+        else:
+            if not self.displayed_python2_warning:
+                Common.dump_err("Cannot store password in keychain.  Upgrade to Python 3 to use keychain.")
+                self.displayed_python2_warning = True
+        return param_value
+
+    def __save_to_keyring(self, param_name, param_value):
+        """
+        Save a secret to the keychain.  Obfuscate the secret first.
+        :param param_name: the name of the parameter
+        :type param_name: str
+        :param param_value: the secret to save
+        :type param_value: str
+        """
+        if sys.version_info > (3, 0):
+            try:
+                system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param_name)
+                user = self.get('okta_username')
+                password = self.__obfuscate(param_value)
+                keyring.set_password(system, user, password)
+            except Exception as e:
+                fail_msg = str(e)
+                if fail_msg.find('Security Auth Failure') >= 0:
+                    Common.dump_err(fail_msg)
+                    Common.dump_err('WARNING: Denied access to password in keychain.  ' +
+                                    'If prompted by keychain, allow access.\n' +
+                                    'You may need to reboot your machine before keychain will prompt again.')
+                else:
+                    Common.dump_err('WARNING: Could not save password to keychain: {}'.format(e))
 
     def __obfuscate(self, secret):
         """
@@ -419,7 +454,9 @@ class CloktaConfiguration(object):
             key_c = key[i % len(key)]
             enc_c = chr((ord(secret[i]) + ord(key_c)) % 256)
             enc.append(enc_c)
-        return base64.urlsafe_b64encode("".join(enc).encode()).decode()
+        encoded = base64.urlsafe_b64encode("".join(enc).encode()).decode()
+
+        return encoded
 
     def __deobfuscate(self, obfuscated):
         """
@@ -434,7 +471,9 @@ class CloktaConfiguration(object):
 
         key = str(uuid.getnode())
         dec = []
+
         enc = base64.urlsafe_b64decode(obfuscated).decode()
+
         for i in range(len(enc)):
             key_c = key[i % len(key)]
             dec_c = chr((256 + ord(enc[i]) - ord(key_c)) % 256)

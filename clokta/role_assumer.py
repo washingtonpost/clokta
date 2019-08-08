@@ -1,6 +1,7 @@
 """"
 Code-behind the scenes for the cli application.
 """
+import os
 
 from clokta.aws_cred_generator import AwsCredentialsGenerator
 from clokta.common import Common
@@ -19,6 +20,8 @@ class RoleAssumer(object):
         self.profile = profile
         """folder to store files in"""
         self.data_dir = "~/.clokta/"
+        if not os.path.exists(os.path.expanduser(self.data_dir)):
+            os.mkdir(os.path.expanduser(self.data_dir))
 
     def assume_role(self, reset_default_role):
         """
