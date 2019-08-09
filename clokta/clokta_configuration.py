@@ -126,8 +126,15 @@ class CloktaConfiguration(object):
             ),
             ConfigParameter(
                 name='okta_password',
-                secret=True,
-                save_to=ConfigParameter.SaveTo.KEYRING
+                secret=True
+            ),
+            ConfigParameter(
+                name='save_password_in_keychain',
+                required=True,
+                save_to=ConfigParameter.SaveTo.DEFAULT,
+                prompt='Would you like clokta to remember your password? [Yes]',
+                default_value=True,
+                param_type=bool
             ),
             ConfigParameter(
                 name='okta_aws_role_to_assume'
@@ -175,6 +182,8 @@ class CloktaConfiguration(object):
 
         config_section = clokta_cfg_file[self.profile_name]
         self.__load_parameters(config_section)
+        if self.get('save_password_in_keychain') == 'True':
+            self.parameters['okta_password'].save_to = ConfigParameter.SaveTo.KEYRING
 
     def __prompt_for(self, param):
         prompt = param.prompt if param.prompt else 'Enter a value for {}'.format(param.name)
@@ -182,10 +191,11 @@ class CloktaConfiguration(object):
             field_value = getpass.getpass(prompt=prompt+":")
         else:
             field_value = click.prompt(text=prompt,
-                                       type=str,
+                                       type=param.param_type,
                                        err=Common.to_std_error(),
-                                       default=param.default_value)
-        return field_value
+                                       default=param.default_value,
+                                       show_default=not param.prompt)
+        return field_value if param.param_type==str else str(field_value)
 
     def apply_credentials(self, credentials):
         """ Save a set of temporary credentials """
@@ -369,7 +379,10 @@ class CloktaConfiguration(object):
                     Common.dump_err(
                         message='Invalid configuration.  {} should never be defined in clokta.cfg.'.format(param.name))
                     raise ValueError("Illegal configuration")
-                param.value = config_section[param.name]
+                if param.param_type == bool:
+                    param.value = self.__validate_bool(config_section[param.name], param.name)
+                else:
+                    param.value = config_section[param.name]
             elif param.secret:
                 param.value = self.__read_from_keyring(param.name)
 
@@ -480,6 +493,25 @@ class CloktaConfiguration(object):
             dec_c = chr((256 + ord(enc[i]) - ord(salt_c)) % 256)
             dec.append(dec_c)
         return "".join(dec)
+
+    def __validate_bool(self, value, name="parameter"):
+        """
+        Verify a string is either True or False.
+        If it is not, print an error.
+        :param value: the string value
+        :type value: str
+        :param name: the name or context of the value to be used in an error message
+        :type name: str
+        :return: "True" if the string is some form of true,  "False" for any other case
+        :rtype: str
+        """
+        if value.strip().lower() == "true":
+            return "True"
+        elif value.strip().lower() == "false":
+            return "False"
+        else:
+            Common.dump_err('{} configured with value "{}" when only True or False is valid.'.format(name, value))
+            return "False"
 
     @classmethod
     def dump_account_numbers(cls, clokta_config_file):

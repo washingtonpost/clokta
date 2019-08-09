@@ -15,7 +15,7 @@ class ConfigParameter:
         KEYRING = 3  # For passwords.  Save to the OS keyring
 
     def __init__(self, name, value=None, required=False, save_to=SaveTo.DONT_SAVE,
-                 secret=False, default_value=None, prompt=None):
+                 secret=False, default_value=None, prompt=None, param_type=str):
         """
         :param name: the name of the parameter (e.g. okta_username)
         :type name: str
@@ -33,7 +33,9 @@ class ConfigParameter:
         :param secret: whether this is a password and should be prompted without echoing
         :type secret: bool
         :param default_value: a default value to use if none is specified
-        :type default_value: str
+        :type default_value: str or bool
+        :param param_type: the type of the parameter.  Usally they are str, but bool is also supported
+        :type param_type: type
         :param prompt: the string to use to prompt the user for this parameter
         :type prompt: str
         """
@@ -44,4 +46,5 @@ class ConfigParameter:
         self.secret = secret
         self.default_value = default_value
         self.prompt = prompt
+        self.param_type = param_type
 

@@ -94,6 +94,6 @@ class RoleAssumer(object):
             )
         else:
             Common.echo(
-                message='Add the "-i" flag for how to use credentials and override defaults or just run\n' +
-                        '\texport AWS_PROFILE={}'.format(self.profile)
+                message='Add the "-i" flag for how to use credentials and override defaults or just run:\n\n' +
+                        'export AWS_PROFILE={}\n'.format(self.profile)
             )
