@@ -1,6 +1,6 @@
 # Clokta: AWS CLI via Okta authentication
 
-Clokta enables you authenticate into an AWS account using Okta on the command line, so that you can run AWS CLI commands.
+Clokta enables you to authenticate into an AWS account using Okta on the command line, so that you can run AWS CLI commands.
 
 ## To Install
 
@@ -40,9 +40,9 @@ A typical run will look something like below.  It uses SMS for MFA.
 ```shell
 > clokta --profile meridian
 Enter a value for okta_password:
-Enter your multifactor authentication token: 914345
-AWS keys generated. To use, run "export AWS_PROFILE=meridian"
-or use files ~/.clokta/meridian.env with docker compose or ~/.clokta/meridian.sh with shell scripts
+Enter SMS text message one time password: 914345
+Add the "-i" flag for how to use credentials and override defaults or just run
+	export AWS_PROFILE=meridian
 >
 ```
 

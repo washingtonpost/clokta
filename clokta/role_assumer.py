@@ -49,6 +49,11 @@ class RoleAssumer(object):
                 if prompt_for_password:
                     clokta_config.prompt_for(param_name='okta_password')
                 result = okta_initiator.initiate_with_auth(clokta_config, mfas)
+                if result == OktaInitiator.Result.INPUT_ERROR:
+                    if prompt_for_password:
+                        Common.dump_err("Failure.  Wrong password or misconfigured session.")
+                    else:
+                        Common.dump_err("Saved password may be out of date.")
                 prompt_for_password = True
 
             if result == OktaInitiator.Result.NEED_MFA:
@@ -89,6 +94,6 @@ class RoleAssumer(object):
             )
         else:
             Common.echo(
-                message='Run "clokta -i" for how to use credentials and override defaults or just run\n' +
+                message='Add the "-i" flag for how to use credentials and override defaults or just run\n' +
                         '\texport AWS_PROFILE={}'.format(self.profile)
             )

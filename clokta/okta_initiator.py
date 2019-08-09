@@ -231,8 +231,6 @@ class OktaInitiator:
                     ('Okta returned this credentials/password related error: {}\n' +
                         'This could be a mistyped password or a misconfigured username ' +
                         'or URL.').format(http_err))
-            else:
-                Common.dump_err("Failure.  Wrong password or misconfigured session.")
             return OktaInitiator.Result.INPUT_ERROR
         except Exception as err:
             Common.dump_err('Unexpected error authenticating with Okta: {}'.format(err))

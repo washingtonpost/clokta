@@ -1,7 +1,6 @@
 import base64
 import getpass
 import sys
-import uuid
 
 import click
 import configparser
@@ -396,7 +395,7 @@ class CloktaConfiguration(object):
             user = self.get('okta_username')
             try:
                 obfuscated = keyring.get_password(system, user)
-                param_value = self.__deobfuscate(obfuscated)
+                param_value = self.__deobfuscate(obfuscated, user)
             except Exception as e:
                 fail_msg = str(e)
                 if fail_msg.find('Security Auth Failure') >= 0:
@@ -423,7 +422,7 @@ class CloktaConfiguration(object):
             try:
                 system = CloktaConfiguration.KEYCHAIN_PATTERN.format(param_name=param_name)
                 user = self.get('okta_username')
-                password = self.__obfuscate(param_value)
+                password = self.__obfuscate(param_value, user)
                 keyring.set_password(system, user, password)
             except Exception as e:
                 fail_msg = str(e)
@@ -435,48 +434,50 @@ class CloktaConfiguration(object):
                 else:
                     Common.dump_err('WARNING: Could not save password to keychain: {}'.format(e))
 
-    def __obfuscate(self, secret):
+    def __obfuscate(self, secret, salt):
         """
         A real simple obfuscation so passwords don't appear in the keychain as plaintext
         This is not encryption and can easily be cracked or reverse engineered
         Counting on the keyring's security to protect the password
         :param secret: a secret to obfuscate
         :type secret: str
+        :param salt: a phrase to use to obfuscate.  Will be used again to deobfuscate.
+        :type salt: str
         :return: a obfuscated version that can be turned back into the secret with __deobfuscate
         :rtype: str
         """
         if not secret:
             return None
 
-        key = str(uuid.getnode())
         enc = []
         for i in range(len(secret)):
-            key_c = key[i % len(key)]
-            enc_c = chr((ord(secret[i]) + ord(key_c)) % 256)
+            salt_c = salt[i % len(salt)]
+            enc_c = chr((ord(secret[i]) + ord(salt_c)) % 256)
             enc.append(enc_c)
         encoded = base64.urlsafe_b64encode("".join(enc).encode()).decode()
 
         return encoded
 
-    def __deobfuscate(self, obfuscated):
+    def __deobfuscate(self, obfuscated, salt):
         """
         Turn a string that was obfuscated with __obfuscate back into the original
         :param obfuscated: obfuscated string
         :type obfuscated: str
+        :param salt: the phrase used to obfuscate the secret
+        :type salt: str
         :return: the original string
         :rtype: str
         """
         if not obfuscated:
             return None
 
-        key = str(uuid.getnode())
         dec = []
 
         enc = base64.urlsafe_b64decode(obfuscated).decode()
 
         for i in range(len(enc)):
-            key_c = key[i % len(key)]
-            dec_c = chr((256 + ord(enc[i]) - ord(key_c)) % 256)
+            salt_c = salt[i % len(salt)]
+            dec_c = chr((256 + ord(enc[i]) - ord(salt_c)) % 256)
             dec.append(dec_c)
         return "".join(dec)
 
