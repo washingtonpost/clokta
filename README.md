@@ -25,9 +25,9 @@ If you have any questions, please post on the #aws-automation Slack channel
 This injects temporary keys into your `.aws/credentials` file that can be accessed with the `--profile` option or the `AWS_PROFILE` environment variable
 
 ```shell
-> clokta --profile meridian
-> aws --profile meridian s3 ls
-> export AWS_PROFILE=meridian
+> clokta --profile elections
+> aws --profile elections s3 ls
+> export AWS_PROFILE=elections
 > aws s3 ls
 ```
 
@@ -38,12 +38,18 @@ Applications that access AWS can be run locally if they used the `AWS_PROFILE` e
 A typical run will look something like below.  It uses SMS for MFA.
 
 ```shell
-> clokta --profile meridian
+elections> clokta --profile elections
 Enter a value for okta_password:
 Enter SMS text message one time password: 914345
 Add the "-i" flag for how to use credentials and override defaults or just run
-	export AWS_PROFILE=meridian
+	export AWS_PROFILE=elections
 >
+```
+
+and you can always run
+
+```bash
+> clokta --help
 ```
 
 ## First Time
@@ -70,15 +76,21 @@ These preferences can be changed later by editing your ~/.clokta/clokta.cfg file
 The `export AWS_PROFILE=«profile»` command allows you to run programs locally  
 
 ```shell
-> clokta -p meridian
-> export AWS_PROFILE=meridian
-> ./bin/meridian
+> clokta -p elections
+> export AWS_PROFILE=elections
+> ./bin/run_elex_server
 ```
 
-But sometimes you need to run things on a remote machine or in a docker container.  For this clokta generates two helpful files:
+But sometimes you need to run things on a remote machine or in a docker container.  For this clokta generates two helpful files which it describes when you use the `-i` flag:
 
-> AWS keys generated. To use, run "export AWS_PROFILE=meridian"
-> or use files **~/.clokta/meridian.env** with docker compose or **~/.clokta/meridian.sh** with shell scripts
+> AWS keys generated.
+> To use with docker-compose include
+> 	env_file:
+> 	    \- ~/.clokta/test-bootstrap.env
+> To use with shell scripts include
+> 	source ~/.clokta/test-bootstrap.sh
+> to use in the current interactive shell run
+> 	export AWS_PROFILE=test-bootstrap
 
 If you are building docker containers you can build them with the credentials in the environment using docker-compose's env_file command and referencing the `«profile».env` file that clokta automatically creates.  A sample docker-compose.yml would like
 
@@ -87,7 +99,7 @@ version: '2'
 services:
   web:
     env_file:
-      - ~/.clokta/meridian.env
+      - ~/.clokta/elections.env
     build: .
     ports:
      - "5000:5000"
@@ -107,7 +119,7 @@ export AWS_SESSION_TOKEN=FQoGZXIvYXdzEF4aDO...KKiGrt0F
 
 ### Specifying a Region
 
-Many AWS CLI commands require the `AWS_REGION` to be defined.  While you can simply specify thison the command line, some users would like the ability to create multiple clokta profiles, one for each region, e.g. `clokta -p eu-pagebuilder` and `clokta -p southeast-pagebuilder`.  This can be done.
+Many AWS CLI commands require the `AWS_REGION` to be defined.  While you can simply specify this on the command line, some users would like the ability to create multiple clokta profiles, one for each region, e.g. `clokta -p eu-pagebuilder` and `clokta -p southeast-pagebuilder`.  This can be done.
 
 1. Create your region specific profile by running clokta
    `clokta -p eu-pagebuilder`
@@ -121,32 +133,9 @@ Many AWS CLI commands require the `AWS_REGION` to be defined.  While you can sim
 
 This, in conjunction with the `export AWS_PROFILE=eu-pagebuilder` command will tie CLI commands to the Frankfurt region.
 
-### Specifying an Okta Role
-
-Sometimes users have access to different roles in a single account.  Clokta will prompt you for which role you want to use.
-
-```shell
-> clokta --profile meridian
-...
-1 - Okta_Admin_Access
-2 - Okta_Developer_Access
-Choose a Role ARN to use: 1
-...
-```
-
-If you do not want to get prompted you can specify which role in the clokta config file.  First you need to login to your account in the AWS web console and find the Role you want to use under the IAM service.  Copy the Role's ARN.
-
-Add this ARN to the ~/.clokta/clokta.cfg file under the desired profile
-
-```
-[meridian]
-okta_aws_app_url = https://washpost.okta.com/home/amazon_aws/0oa123abcdefgh4567/272
-okta_aws_role_to_assume = arn:aws:iam::123456789012:role/Okta_Developer_Access
-```
-
 ### Specifying a Non-Okta Role
 
-Services often have their own roles that they run under granting them the needed permissions, while developers' roles will have much more restricted permissions.  So, for developers to run the apps locally they need to assume the app's role.  This can be done simply with clokta.
+A developer may have several Okta-based roles that they can choose from.  Clokta will prompt for which role to use.  But services often have their own non-okta-based roles that they run under granting them the needed permissions that are often more powerful than the tightly restricted developers' roles. So, for developers to run the services locally they need to assume the service's role.  This can be done simply with clokta.
 
 1. Make sure your Okta role has the permission to assume your service's role
 
@@ -157,16 +146,20 @@ Services often have their own roles that they run under granting them the needed
 4. Edit the `~/.aws/config` file and create a new profile
 
    ```
-   [profile myapp-myteam]
+   [profile myservice]
    role_arn=«service role's ARN»
    source_profile=myteam
    ```
 
 5. `clokta -p myteam`
 
-6. `export AWS_PROFILE=myapp-myteam`
+6. `export AWS_PROFILE=myservice`
 
 You can now run your process locally and AWS will assume the service role before making any API calls.
+
+## Remembering your Password
+
+Clokta has the ability to remember your password.  Depending on your platform it will store this in the Mac Keychain, Windows Credential Vault or Linux KWallet.  Clokta will prompt you on whether to save your password on first run, but to change it later edit the `save_password_in_keychain` parameter in your `~/.clokta/clokta.cfg` fle.
 
 ## <a name="install_issues">Installation Issues</a>
 

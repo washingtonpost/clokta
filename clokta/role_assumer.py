@@ -88,8 +88,9 @@ class RoleAssumer(object):
             )
         elif Common.get_output_format() == Common.long_out:
             Common.echo(
-                message='AWS keys generated. To use with docker-compose include\n\t{}\n'.format(docker_file) +
-                        'To use with shell scripts source\n\t{}\n'.format(bash_file) +
+                message='\nAWS keys generated.\nTo use with docker-compose include\n' +
+                        '\tenv_file:\n\t    - {}\n'.format(docker_file) +
+                        'To use with shell scripts include\n\tsource {}\n'.format(bash_file) +
                         'to use in the current interactive shell run\n\texport AWS_PROFILE={}\n'.format(self.profile)
             )
         else:
