@@ -1,4 +1,3 @@
-''' ProfileManager class must be instantiated prior to use '''
 import click
 
 from clokta.common import Common
@@ -6,40 +5,39 @@ from clokta.factors import Factors
 
 
 class FactorChooser(object):
-    ''' Supports MFA source determination '''
+    """ Supports MFA source determination """
 
-    def __init__(self, factors, factor_preference=None, verbose=False):
-        ''' Instance constructor '''
+    def __init__(self, factors, factor_preference=None):
+        """ Instance constructor """
         self.okta_factors = factors
         self.factor_preference = factor_preference
-        self.verbose = verbose
 
         self.cli_factors = self.__load_supported_factors()
         self.option_factors = self.__filter_unsupported_factors()
 
     def verify_only_factor(self, factor):
-        ''' Return the Okta MFA configuration provided it is a supported configuration '''
+        """ Return the Okta MFA configuration provided it is a supported configuration """
         verified_factors = [
             opt for opt in self.option_factors
             if opt['provider'] == factor['provider'] and
             opt['factor_type'] == factor['factorType']
         ]
         if verified_factors:
-            if self.verbose:
+            if Common.is_debug():
                 msg = 'Using only available factor: {}'.format(verified_factors[0]['prompt'])
-                Common.dump_verbose(message=msg)
+                Common.dump_out(message=msg)
             return factor
 
     def verify_preferred_factor(self):
-        ''' Return the Okta MFA configuration for the matching, supported configuration '''
+        """ Return the Okta MFA configuration for the matching, supported configuration """
         preferred_factors = [
             opt for opt in self.option_factors
             if self.factor_preference == opt['prompt']
         ]
         if preferred_factors:
-            if self.verbose:
+            if Common.is_debug():
                 msg = 'Using preferred factor: {}'.format(self.factor_preference)
-                Common.dump_verbose(message=msg)
+                Common.dump_out(message=msg)
 
             matching_okta_factor = [
                 fact for fact in self.okta_factors
@@ -52,10 +50,11 @@ class FactorChooser(object):
         else:
             msg = 'The MFA option \'{}\' in your configuration file is not available.\nAvailable options are {}'.format(
                 self.factor_preference, [opt['prompt'] for opt in self.option_factors])
-            Common.dump_err(message=msg, exit_code=3, verbose=self.verbose)
+            Common.dump_err(message=msg)
+            raise ValueError("Unexpected MFA option")  # TODO: Reprompt
 
     def choose_supported_factor(self):
-        ''' Give the user a choice from the intersection of configured and supported factors '''
+        """ Give the user a choice from the intersection of configured and supported factors """
         index = 1
         for opt in self.option_factors:
             msg = '{index} - {prompt}'.format(index=index, prompt=opt['prompt'])
@@ -64,7 +63,7 @@ class FactorChooser(object):
 
         raw_choice = None
         try:
-            raw_choice = click.prompt('Choose a MFA type to use', type=int)
+            raw_choice = click.prompt('Choose a MFA type to use', type=int, err=Common.to_std_error())
             choice = raw_choice - 1
         except ValueError:
             Common.echo(message='Please select a valid option: you chose: {}'.format(raw_choice))
@@ -82,8 +81,8 @@ class FactorChooser(object):
             if fact['provider'] == chosen_option['provider'] and
             fact['factorType'] == chosen_option['factor_type']
         ]
-        if self.verbose:
-            Common.dump_verbose(message='Using chosen factor: {}'.format(chosen_option['prompt']))
+        if Common.is_debug():
+            Common.dump_out(message='Using chosen factor: {}'.format(chosen_option['prompt']))
 
         return matching_okta_factor[0]
 
@@ -96,4 +95,5 @@ class FactorChooser(object):
             for okta in self.okta_factors:
                 if cli['provider'] == okta['provider'] and cli['factor_type'] == okta['factorType']:
                         factor_intersection.append(cli)
+                        okta['clokta_id'] = cli['prompt']
         return factor_intersection

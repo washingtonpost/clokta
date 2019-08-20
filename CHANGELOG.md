@@ -1,5 +1,12 @@
 # Changelog
 
+## v4.1.0
+- Saves password in keychain
+- Can specify default role on command line
+- Less verbose output with option for more verbose instructions
+- Option to use inside eval commands
+- Can list profiles available
+
 ## v4.0.1
 - Generated shell script and docker files include setting the AWS_PROFILE variable
 
