@@ -46,6 +46,11 @@ Add the "-i" flag for how to use credentials and override defaults or just run
 >
 ```
 
+and you can always run
+```bash
+> clokta --help
+```
+
 ## Profiles
 
 More documentation on Profiles can be accessed [via this link](docs/Profiles.md)
