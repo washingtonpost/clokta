@@ -50,7 +50,7 @@ class Common(object):
         :param message: the message to print
         :param new_line: whether to put a new line at the end (default is include new line)
         """
-        click.secho(message=message, nl=new_line, bold=True, fg='red', err=True)
+        click.secho(message, nl=new_line, bold=True, fg='red', err=True)
 
     @classmethod
     def dump_out(cls, message, new_line=True):
@@ -62,7 +62,7 @@ class Common(object):
         if new_line:
             message += '\n'
         if Common.is_debug():
-            click.secho(message=message, nl=new_line, bold=False, fg='blue', err=Common.to_std_error())
+            click.secho(message, nl=new_line, bold=False, fg='blue', err=Common.to_std_error())
 
     @classmethod
     def echo(cls, message, new_line=True, bold=False, always_stdout=False):

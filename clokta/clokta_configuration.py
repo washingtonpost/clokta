@@ -323,27 +323,33 @@ class CloktaConfiguration(object):
         param_to_prompt_for = self.parameters[param_name]
         param_to_prompt_for.value = self.__prompt_for(param_to_prompt_for)
 
-    def determine_okta_onetimepassword(self, factor):
+    def determine_okta_onetimepassword(self, factor, first_time):
         """
         Get the one time password, which may be in one password or
         may need to be prompted for
         :param factor: the mfa mechanism being used.  Holds a user friendly label for identifying which mechanism.
         :type factor: dict
+        :param first_time: whether this is the first time this run determining one time password
+            on subsequent attempts we don't try to get it with an otp secret because that
+            obviously didn't work the first time
         :return: the Okta one time password
         :rtype: string
         """
 
         otp_value = None
         if self.get('okta_onetimepassword_secret'):
-            try:
-                # noinspection PyUnresolvedReferences
-                import onetimepass as otp
-            except ImportError:
-                msg = 'okta_onetimepassword_secret provided in config but "onetimepass" is not installed. ' + \
-                      'run: pip install onetimepass'
-                Common.dump_err(message=msg)
-                raise ValueError("Illegal configuration")
-            otp_value = otp.get_totp(self.get('okta_onetimepassword_secret'))
+            if not first_time:
+                Common.dump_err("OTP generator created incorrect OTP")
+            else:
+                try:
+                    # noinspection PyUnresolvedReferences
+                    import onetimepass as otp
+                except ImportError:
+                    msg = 'okta_onetimepassword_secret provided in config but "onetimepass" is not installed. ' + \
+                          'run: pip install onetimepass'
+                    Common.dump_err(message=msg)
+                    raise ValueError("Illegal configuration")
+                otp_value = otp.get_totp(self.get('okta_onetimepassword_secret'))
 
         if not otp_value:
             otp_value = click.prompt(
