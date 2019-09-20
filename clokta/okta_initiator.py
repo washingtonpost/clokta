@@ -376,8 +376,16 @@ class OktaInitiator:
                 state_token=self.intermediate_state_token,
                 otp_value=otp
             )
-            self.session_token = mfa_response['sessionToken']
-            return OktaInitiator.Result.SUCCESS
+            if 'sessionToken' in mfa_response:
+                self.session_token = mfa_response['sessionToken']
+                return OktaInitiator.Result.SUCCESS
+            else:
+                if 'status' not in mfa_response:
+                        raise ValueError('Unexpected response from Okta.  ' +
+                                         'Received neither session token nor error status.')
+                Common.dump_err('Okta failed to return session token and only returned this status: {}'.format(
+                        mfa_response['status']))
+                return OktaInitiator.Result.INPUT_ERROR
         except requests.exceptions.HTTPError as http_err:
             Common.dump_err('Okta returned this MFA related error: {}'.format(http_err))
             return OktaInitiator.Result.INPUT_ERROR
