@@ -5,7 +5,7 @@ import warnings
 
 setup(
     name='clokta',
-    version='4.1.1a1',
+    version='4.1.1',
     packages=find_packages(),
     include_package_data=True,
     py_modules=['clokta'],
@@ -27,7 +27,7 @@ setup(
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",
-    download_url="https://github.com/washingtonpost/clokta/tarball/4.1.0",
+    download_url="https://github.com/washingtonpost/clokta/tarball/4.1.1",
     keywords=['okta', 'clokta', 'aws', 'cli'],
     classifiers=[]
 )

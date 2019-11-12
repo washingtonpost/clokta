@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.1.1
+- Fixed error when password has been changed
+- Fixed error OTP generation fails
+- Better error handling
+
 ## v4.1.0
 - Saves password in keychain
 - Can specify default role on command line
