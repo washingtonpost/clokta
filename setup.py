@@ -5,14 +5,14 @@ import warnings
 
 setup(
     name='clokta',
-    version='4.1.1',
+    version='4.1.2',
     packages=find_packages(),
     include_package_data=True,
     py_modules=['clokta'],
     install_requires=[
         'beautifulsoup4',
         'boto3',
-        'click',
+        'click>=7.0',
         'configparser',
         'enum-compat',
         'keyring',
@@ -27,7 +27,7 @@ setup(
     author="Robert Antonucci and the WaPo platform tools team",
     author_email="opensource@washingtonpost.com",
     url="https://github.com/washingtonpost/clokta",
-    download_url="https://github.com/washingtonpost/clokta/tarball/4.1.1",
+    download_url="https://github.com/washingtonpost/clokta/tarball/4.1.2",
     keywords=['okta', 'clokta', 'aws', 'cli'],
     classifiers=[]
 )
