@@ -31,6 +31,19 @@ class AwsCredentialsGenerator:
         self.docker_file = None  # type: str
         self.roles = self.__deduce_roles_from_saml()  # type: [AwsRole]
 
+        # We need to make sure, when interacting with AWS, we don't try to use
+        # default creds as we are creating our own.
+        envars_to_clear = [
+            "AWS_PROFILE", 
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_SESSION_TOKEN"
+        ]
+        for envvar in envars_to_clear:
+            if envvar in os.environ:
+                del os.environ[envvar]
+
+
     def get_roles(self):
         """
         Returns the possible roles that can be assumed with the SAML token
