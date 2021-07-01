@@ -416,7 +416,7 @@ class CloktaConfiguration(object):
             if not param.value and param.required:
                 # We need it.  Prompt for it.
                 param.value = self.__prompt_for(param)
-            debug_msg += '     {}={}'.format(param.name, param.value)
+            debug_msg += '     {}={}'.format(param.name, param.value if not param.secret else 'xxxxxxxx')
 
         if Common.is_debug():
             Common.dump_out(message=debug_msg)
