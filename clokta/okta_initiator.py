@@ -273,7 +273,8 @@ class OktaInitiator:
             'username': configuration.get('okta_username'),
             'password': configuration.get('okta_password')
         }
-        url = 'https://' + configuration.get('okta_org') + '/api/v1/authn'
+        org = self.__deduce_org(configuration.get('okta_aws_app_url'))
+        url = 'https://{}/api/v1/authn'.format(org)
 
         response = requests.post(url, data=json.dumps(payload), headers=headers)
         if Common.is_debug():
@@ -286,6 +287,19 @@ class OktaInitiator:
             return resp
         else:
             response.raise_for_status()
+
+    def __deduce_org(self, app_url):
+        """
+        Pull the okta org (e.g. mycompany.okta.com) from the Okta app URL.
+        :param app_url: the URL to an okta app (e.g. https://mycompany.okta.com/home/amazon_aws/hd63h3/542)
+        :type app_url: str
+        :return: the org's dns name (e.g. mycompany.okta.com)
+        :rtype: str
+        """
+        start = len('https://')
+        end = app_url.index('/', start+1)
+        org = app_url[start:end]
+        return org
 
     def __wait_for_push_result(self, state_token, push_response):
         """

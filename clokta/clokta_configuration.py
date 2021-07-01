@@ -110,12 +110,6 @@ class CloktaConfiguration(object):
                 save_to=ConfigParameter.SaveTo.DEFAULT
             ),
             ConfigParameter(
-                name='okta_org',
-                required=True,
-                save_to=ConfigParameter.SaveTo.DEFAULT,
-                default_value='washpost.okta.com'
-            ),
-            ConfigParameter(
                 name='multifactor_preference',
                 save_to=ConfigParameter.SaveTo.DEFAULT,
                 default_value='Okta Verify with Push'
@@ -154,7 +148,7 @@ class CloktaConfiguration(object):
         return parameters
 
 
-    def __checkUrl(self, url):
+    def __check_url(self, url):
         """
         Verify that the URL passed in is an Okta App URL to an AWS app.  Will raise an exception
         if url is invalid
@@ -191,13 +185,12 @@ class CloktaConfiguration(object):
         # Make sure we have the bare minimum in the config file.  The DEFAULT section and the app URL.
         if not clokta_cfg_file['DEFAULT']:
             clokta_cfg_file['DEFAULT'] = {
-                'okta_org': ''
             }
         if not clokta_cfg_file.has_section(self.profile_name):
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\n' + \
                   'Copy the link from the Okta App'
             app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
-            app_url = self.__checkUrl(app_url)
+            app_url = self.__check_url(app_url)
             clokta_cfg_file.add_section(self.profile_name)
             clokta_cfg_file.set(self.profile_name, 'okta_aws_app_url', app_url)
 
@@ -391,7 +384,7 @@ class CloktaConfiguration(object):
         login to though queries on this will also look in the DEFAULT section
         :type config_section:
         :return: a map of attributes that define the clokta login, e.g.
-            {"okta_username": "doej", "okta_org": "washpost.okta.com", ...}
+            {"okta_username": "doej", "multifactor_preference": "Google Authenticator", ...}
         :rtype: map[string, string]
         """
         debug_msg = 'Configuration:\n'

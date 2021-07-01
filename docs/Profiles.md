@@ -95,7 +95,6 @@ In addition to the AWS files stored in the users home directory, Clokta stores t
 ```
 $ cat ~/.clokta/clokta.cfg
 [DEFAULT]
-okta_org = washpost.okta.com
 okta_username = almr
 multifactor_preference = Google Authenticator
 

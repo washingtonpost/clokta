@@ -64,7 +64,6 @@ The first time you run clokta it will prompt you for your context.  It will ask 
 
   ![Okta screenshot](images/README-img1.png)
 -  okta_username - your okta username
-- okta_org - for Washington Post users,  use **washpost.okta.com**
 - multifactor_preference - which MFA mechanism you use with Okta.  Your options are
   - Google Authenticator
   - SMS text message

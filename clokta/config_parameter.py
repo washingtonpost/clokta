@@ -22,7 +22,7 @@ class ConfigParameter:
         :param value: the value it has been set to (e.g. doej)
         :type value: str
         :param required: whether this value is required for a clokta login and the user should be
-            prompted for a value if none is known.  okta_org is required.  okta_aws_role_to_assume is
+            prompted for a value if none is known.  okta_username is required.  okta_aws_role_to_assume is
             often deduced in the process though may be prompted for later
         :type required: boolean
         :param save_to: where to persistently store this parameters value so we remember it for
