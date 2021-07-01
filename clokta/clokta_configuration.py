@@ -8,6 +8,7 @@ import enum
 import json
 import keyring
 import os
+import re
 
 from clokta.common import Common
 from clokta.config_parameter import ConfigParameter
@@ -152,6 +153,32 @@ class CloktaConfiguration(object):
         ]
         return parameters
 
+
+    def __checkUrl(self, url):
+        """
+        Verify that the URL passed in is an Okta App URL to an AWS app.  Will raise an exception
+        if url is invalid
+        :return: the valid URL with any query parameters stripped off
+        :rtype: str
+        """
+        # The URL should be of the form (though query parameter "fromHome" is optional)
+        # https://<YOUR_COMPANY>.okta.com/home/amazon_aws/<UNIQUE_ID>/<APP_ID>?fromHome=true
+        pattern = re.compile('https://[^.]+.okta.com/home/amazon_aws/[^/]+/[0-9]+\\??')
+        match = pattern.match(url)
+        if match is None:
+            Common.dump_err(
+                "Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/home/amazon_aws/...", 6
+            )
+            raise ValueError("Invalid URL")
+        else:
+            # Strip off any query parameters
+            paramIndex = url.find('?');
+            if paramIndex >= 0:
+                url = url[:paramIndex]
+
+        return url;
+
+
     def __initialize_configuration(self):
         """
         Load config file, both the desired section and the default section
@@ -170,13 +197,7 @@ class CloktaConfiguration(object):
             msg = 'No profile "{}" in clokta.cfg, but enter the information and clokta will create a profile.\n' + \
                   'Copy the link from the Okta App'
             app_url = click.prompt(text=msg.format(self.profile_name), type=str, err=Common.to_std_error()).strip()
-            if not app_url.startswith("https://") or not app_url.endswith("?fromHome=true"):
-                Common.dump_err(
-                    "Invalid App URL.  URL usually of the form https://xxxxxxxx.okta.com/.../272?fromHome=true", 6
-                )
-                raise ValueError("Invalid URL")
-            else:
-                app_url = app_url[:-len("?fromHome=true")]
+            app_url = self.__checkUrl(app_url)
             clokta_cfg_file.add_section(self.profile_name)
             clokta_cfg_file.set(self.profile_name, 'okta_aws_app_url', app_url)
 
