@@ -1,0 +1,1 @@
+Notes on the development environment of Clokta can be found [here](https://github.com/WPMedia/clokta/blob/main/DEVELOPER.md).

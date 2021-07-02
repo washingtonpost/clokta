@@ -9,6 +9,12 @@ You will need Python 2.7 or 3 installed on your machine.
 Install with
 
 ```
+> pip3 install -U clokta
+```
+
+or
+
+```
 > pip install -U clokta
 ```
 
@@ -159,31 +165,64 @@ Clokta has the ability to remember your password.  Depending on your platform it
 
 ## <a name="install_issues">Installation Issues</a>
 
-If you encounter permissions errors when installing clokta on a Mac, it is probably because you are using the system python which requires root privileges to install libraries.
+If you encounter permissions errors when installing clokta on a Mac, it is probably because you are using the system python which requires root privileges to install libraries because it potentially mucks with other system libraries.
 
-##### Option 1 (Recommended): Use brew python
+##### Option 1 (Recommended): Install clokta locally
 
-Run `brew install python`
+Install clokta under your home directory using a virtual environment.  This will install not only clokta but all the libraries that clokta needs without touching system libraries.  Once you build clokta locally, manually create a link in `/usr/local/bin` so clokta will be on the path.
 
-This will install a version of python that installs libraries to `/usr/local` which does not require root permissions.  Then run `pip install clokta`.
+If you do not have `virtualenv` you will need to install it
+
+```bash
+> virtualenv --version
+zsh: command not found: virtualenv
+> brew install virtualenv
+```
+
+Then run
+
+```bash
+virtualenv ~/.local/clokta
+. ~/.local/clokta/bin/activate
+pip install clokta
+deactivate
+ln -s ~/.local/clokta/bin/clokta /usr/local/bin/clokta
+```
+
+When it comes time to upgrade clokta you will need to do
+
+```
+. ~/.local/clokta/bin/activate
+pip install -U clokta
+deactivate
+```
 
 ##### Option 2: Install using sudo
 
-Run `sudo -H pip install -U clokta`
+This is potentially dangerous.  This may update system Python libraries which could have unexpected effects on other parts of the system.  However, many developers use this method and no problems have yet been reported.
 
-However, you may encounter
+Run `sudo -H pip3 install -U clokta`
+
+If you encounter
 
 ```
 Cannot uninstall 'six'. It is a distutils installed project and thus we cannot accurately determine which files belong to it which would lead to only a partial uninstall.
 ```
 
-It's related to the System Integrity Protection software in the OS ( https://github.com/pypa/pip/issues/3165 ).. the following command should resolve the issue
+it's related to the System Integrity Protection software in the OS ( https://github.com/pypa/pip/issues/3165 ).  Try this
 
 ```
-sudo -H pip install --ignore-installed -U python-dateutil six
+sudo -H pip3 install --ignore-installed -U python-dateutil six
+sudo -H pip3 install -U clokta
 ```
 
-##### Option 3: Install using python3
+##### Option 3: Use brew python
+
+Run `brew install python`
+
+This will install a version of python that installs libraries to `/usr/local` which does not require root permissions.  Then run `pip install clokta`.
+
+##### Option 4: Install using python3
 
 Some installations require python3 be invoked directly when installing:
 
@@ -192,7 +231,9 @@ python3 -m pip install -U clokta
 ```
 
 If you encounter `PermissionError: [Errno 13] Permission denied` then:
+
 ```
 sudo python3 -m pip uninstall clokta     # (may need to use python3 vs python2 for uninstall)
 ```
+
 and then install as indicated above.
