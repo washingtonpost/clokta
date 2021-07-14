@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.1.3
+- Can now paste Okta URLs from Guidepost as well as Okta home page
+- Okta now completely generic, no code is specific to Washington Post.  WashingtonPost-specific instructions have been moved out of the repo. 
+- Fixed bug with not accepting URLs for non-Washington Post systems
+- Fixed bug with running Okta when AWS_PROFILE is set to a non-existent profile
+
 ## v4.1.2
 - Fixed error with older versions of click preinstalled
 
